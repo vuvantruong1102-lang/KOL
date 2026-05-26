@@ -49,11 +49,25 @@ a { color: var(--info); }
 .app { display: flex; min-height: 100vh; }
 
 .sidebar {
-  width: var(--sidebar-w); flex-shrink: 0;
+  flex-shrink: 0;
   background: var(--surface); border-right: 1px solid var(--line);
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh;
 }
+.sidebar-resizer {
+  position: absolute; top: 0; right: -3px; width: 6px; height: 100%;
+  cursor: col-resize; z-index: 40;
+}
+.sidebar-resizer:hover { background: var(--brand); opacity: .3; }
+.sidebar .brand .brand-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-hide { background: none; border: none; color: var(--txt-faint); font-size: 16px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.sidebar-hide:hover { background: var(--bg); color: var(--txt); }
+.sidebar-reopen {
+  position: sticky; top: 0; align-self: flex-start; height: 100vh; width: 36px;
+  background: var(--surface); border: none; border-right: 1px solid var(--line);
+  color: var(--txt-dim); font-size: 16px; cursor: pointer; flex-shrink: 0;
+}
+.sidebar-reopen:hover { background: var(--bg); color: var(--brand); }
 .sidebar .brand {
   display: flex; align-items: center; gap: 10px;
   padding: 18px 18px 16px; font-weight: 700; font-size: 16px; letter-spacing: -0.3px;
@@ -178,7 +192,11 @@ tbody tr:hover { background: var(--surface-2); }
 .section-title:first-child { margin-top: 0; }
 
 /* ---------- Editable pipeline table ---------- */
-.pipe-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 13px; min-width: 1300px; }
+.pipe-table { border-collapse: separate; border-spacing: 0; font-size: 13px; table-layout: fixed; width: max-content; min-width: 100%; }
+.pipe-table th { overflow: hidden; }
+.col-resizer { position: absolute; top: 0; right: 0; width: 7px; height: 100%; cursor: col-resize; user-select: none; }
+.col-resizer:hover { background: var(--brand); opacity: .4; }
+.pipe-table td > input, .pipe-table td > select { max-width: 100%; }
 .pipe-table th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; padding: 10px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--txt-dim); border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 .pipe-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 .pipe-table tr:hover td { background: var(--surface-2); }

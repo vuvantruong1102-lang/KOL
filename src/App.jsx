@@ -6,7 +6,7 @@ import {
   loadAll, signInWithPassword, signOut, getSession,
 } from './lib/storage'
 import { hasSupabaseConfig, FIXED_EMAIL, supabase } from './lib/supabaseClient'
-import { WORK_STATUS, statusOf, TIERS, autoTier, tierLabel, RATING_TAGS } from './lib/constants'
+import { WORK_STATUS, statusOf, TIERS, autoTier, tierLabel, RATING_TAGS, KOL_STATUS, kolStatusOf } from './lib/constants'
 
 // ============================ Helpers ============================
 // Format số lượt follow kiểu 1k, 10k, 1.2M
@@ -40,6 +40,8 @@ function emptyKol() {
     id: uid(), name: '', phone: '', email: '', address: '',
     tiktok: '', instagram: '', youtube: '', facebook: '',
     topic: '', followers: 0, rating: 0, tags: [], note: '',
+    product: '',          // sản phẩm (nhập tay)
+    kolStatus: '',        // trạng thái KOL: chua_lien_he, da_lien_he, dang_hop_tac, da_hop_tac, tu_choi
     createdAt: new Date().toISOString(),
   }
 }
@@ -49,6 +51,8 @@ function emptyWork(kol) {
     kolId: kol ? kol.id : '',
     kolName: kol ? kol.name : '',
     followers: kol ? kol.followers : 0,
+    product: '',          // sản phẩm
+    sampleQty: '',        // số lượng mẫu
     status: 'da_lien_he',
     review: '',           // '', 'da_review', 'chua_review', 'mau_mien_phi'
     canReup: '',          // '', 'co', 'khong'
@@ -73,6 +77,29 @@ function AppInner({ onSignOut }) {
   const [logs, setLogs] = useState([])
   const [editing, setEditing] = useState(null)
   const [toast, setToast] = useState('')
+
+  // độ rộng + ẩn/hiện sidebar (lưu cục bộ trong trình duyệt cho tiện, không lên DB)
+  const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem('kolmgr_sidebar_w')) || 220)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('kolmgr_sidebar_collapsed') === '1')
+  useEffect(() => { localStorage.setItem('kolmgr_sidebar_w', String(sidebarW)) }, [sidebarW])
+  useEffect(() => { localStorage.setItem('kolmgr_sidebar_collapsed', sidebarCollapsed ? '1' : '0') }, [sidebarCollapsed])
+
+  // kéo mép sidebar để đổi rộng
+  function startSidebarDrag(e) {
+    e.preventDefault()
+    const onMove = (ev) => {
+      const x = (ev.touches ? ev.touches[0].clientX : ev.clientX)
+      setSidebarW(Math.min(360, Math.max(170, x)))
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove); window.removeEventListener('touchend', onUp)
+      document.body.style.userSelect = ''
+    }
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove); window.addEventListener('touchend', onUp)
+  }
 
   useEffect(() => {
     seedIfEmpty()
@@ -116,29 +143,39 @@ function AppInner({ onSignOut }) {
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brand"><span className="mark">K</span> KOL Manager</div>
-        <nav className="nav">
-          {nav.map(([key, ico, label]) => (
-            <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
-              <span className="ico">{ico}</span> {label}
-            </button>
-          ))}
-        </nav>
-        <div className="actions">
-          <button className="btn primary block" onClick={() => setEditing(emptyKol())}>+ Thêm KOL</button>
-          <DataMenu
-            onExport={doExport}
-            onExportCsv={() => exportCsv(kols, works)}
-            onImport={async (data) => { await importAll(data); setKols(loadKols()); setWorks(loadWorks()); setVideos(loadVideos()); setTemplates(loadTemplates()); setLogs(loadLogs()); flash('Đã nhập dữ liệu') }}
-          />
-          {onSignOut && <button className="btn ghost block" style={{ fontSize: 12.5 }} onClick={onSignOut}>↩ Đăng xuất</button>}
-        </div>
-      </aside>
+      {sidebarCollapsed ? (
+        <button className="sidebar-reopen" title="Hiện menu" onClick={() => setSidebarCollapsed(false)}>☰</button>
+      ) : (
+        <aside className="sidebar" style={{ width: sidebarW }}>
+          <div className="brand">
+            <span className="mark">K</span>
+            <span className="brand-text">KOL Manager</span>
+            <button className="sidebar-hide" title="Ẩn menu" onClick={() => setSidebarCollapsed(true)}>«</button>
+          </div>
+          <nav className="nav">
+            {nav.map(([key, ico, label]) => (
+              <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
+                <span className="ico">{ico}</span> {label}
+              </button>
+            ))}
+          </nav>
+          <div className="actions">
+            <button className="btn primary block" onClick={() => setEditing(emptyKol())}>+ Thêm KOL</button>
+            <DataMenu
+              onExport={doExport}
+              onExportCsv={() => exportCsv(kols, works)}
+              onImport={async (data) => { await importAll(data); setKols(loadKols()); setWorks(loadWorks()); setVideos(loadVideos()); setTemplates(loadTemplates()); setLogs(loadLogs()); flash('Đã nhập dữ liệu') }}
+            />
+            {onSignOut && <button className="btn ghost block" style={{ fontSize: 12.5 }} onClick={onSignOut}>↩ Đăng xuất</button>}
+          </div>
+          <div className="sidebar-resizer" onMouseDown={startSidebarDrag} onTouchStart={startSidebarDrag} title="Kéo để đổi rộng" />
+        </aside>
+      )}
 
       <main className="content">
         {tab === 'dashboard' && <Dashboard kols={kols} works={works} onOpenKol={setEditing} goTo={setTab} />}
-        {tab === 'list' && <KolList kols={kols} works={works} onOpen={setEditing} />}
+        {tab === 'list' && <KolList kols={kols} works={works} onOpen={setEditing}
+          onUpdateKol={(id, patch) => { const next = kols.map((k) => (k.id === id ? { ...k, ...patch } : k)); persistKols(next, 'Sửa KOL (nhanh)', (next.find((k) => k.id === id) || {}).name || '') }} />}
         {tab === 'pipeline' && (
           <Pipeline kols={kols} works={works} templates={templates}
             onChange={(next, a, d) => persistWorks(next, a, d)}
@@ -294,8 +331,10 @@ function Dashboard({ kols, works, onOpenKol, goTo }) {
   return (
     <div>
       <div className="page-head"><h1>Tổng quan</h1></div>
-      {overdue.length > 0 && (
-        <div className="alert warn">⚠ Có <b style={{ margin: '0 4px' }}>{overdue.length}</b> đơn đã gửi quá 7 ngày chưa có video.</div>
+      {waiting.length > 0 && (
+        <div className="alert warn">
+          🔔 Có <b style={{ margin: '0 4px' }}>{waiting.length}</b> đơn “Đã gửi hàng” đang chờ trả video{overdue.length > 0 && <> — trong đó <b style={{ margin: '0 4px' }}>{overdue.length}</b> đơn đã quá 7 ngày</>}.
+        </div>
       )}
       <div className="stats">
         <div className="stat"><div className="num">{fmtNum(kols.length)}</div><div className="lbl">Tổng KOL</div></div>
@@ -318,18 +357,19 @@ function Dashboard({ kols, works, onOpenKol, goTo }) {
       </div>
 
       <div className="panel">
-        <h3 style={{ marginTop: 0, fontSize: 14 }}>Đơn đang chờ trả video</h3>
+        <h3 style={{ marginTop: 0, fontSize: 14 }}>Đơn đang chờ trả video <span className="muted" style={{ fontWeight: 400, fontSize: 12.5 }}>— các đơn “Đã gửi hàng” nhưng chưa có link video</span></h3>
         {waiting.length === 0 ? <div className="muted" style={{ padding: '12px 0' }}>Không có đơn nào đang chờ. 🎉</div> : (
           <div className="table-wrap" style={{ border: 'none' }}>
             <table>
-              <thead><tr><th>KOL</th><th>Mã đơn</th><th>Ngày gửi</th><th className="right">Đã chờ</th></tr></thead>
+              <thead><tr><th>KOL</th><th>Sản phẩm</th><th>Mã đơn</th><th>Ngày gửi</th><th className="right">Đã chờ</th></tr></thead>
               <tbody>
-                {waiting.slice(0, 15).map(({ w, days }) => (
+                {waiting.slice(0, 20).map(({ w, days }) => (
                   <tr key={w.id}>
                     <td className="cell-name">{w.kolName || '—'}</td>
+                    <td>{w.product || '—'}</td>
                     <td className="mono">{w.orderCode || '—'}</td>
                     <td>{fmtDateShort(w.shipDate)}</td>
-                    <td className="right mono" style={{ color: days >= 7 ? 'var(--danger)' : 'var(--warn)', fontWeight: 600 }}>{days === null ? '—' : days + ' ngày'}</td>
+                    <td className="right mono" style={{ color: days !== null && days >= 7 ? 'var(--danger)' : 'var(--warn)', fontWeight: 600 }}>{days === null ? 'chưa có ngày' : days + ' ngày'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -342,36 +382,42 @@ function Dashboard({ kols, works, onOpenKol, goTo }) {
 }
 
 // ============================ KOL List ============================
-function KolList({ kols, works, onOpen }) {
+function KolList({ kols, works, onOpen, onUpdateKol }) {
   const [q, setQ] = useState('')
   const [fTier, setFTier] = useState('')
+  const [fStatus, setFStatus] = useState('')
   const [sortKey, setSortKey] = useState('createdAt')
   const [sortDir, setSortDir] = useState('desc')
 
-  // video mới nhất cho mỗi KOL, lấy từ works
+  // video + số lần hợp tác cho mỗi KOL, lấy từ works
   const videosByKol = useMemo(() => {
     const m = {}
-    works.forEach((w) => {
-      if (w.videoLink && w.kolId) (m[w.kolId] || (m[w.kolId] = [])).push(w.videoLink)
-    })
+    works.forEach((w) => { if (w.videoLink && w.kolId) (m[w.kolId] || (m[w.kolId] = [])).push(w.videoLink) })
+    return m
+  }, [works])
+  const collabCount = useMemo(() => {
+    const m = {}
+    works.forEach((w) => { if (w.kolId) m[w.kolId] = (m[w.kolId] || 0) + 1 })
     return m
   }, [works])
 
   const filtered = useMemo(() => {
     let arr = kols.filter((k) => {
       if (fTier && autoTier(k.followers) !== fTier) return false
-      if (q) { const hay = `${k.name} ${k.phone} ${k.email} ${k.topic} ${k.tiktok}`.toLowerCase(); if (!hay.includes(q.toLowerCase())) return false }
+      if (fStatus && (k.kolStatus || '') !== fStatus) return false
+      if (q) { const hay = `${k.name} ${k.phone} ${k.email} ${k.topic} ${k.tiktok} ${k.product || ''}`.toLowerCase(); if (!hay.includes(q.toLowerCase())) return false }
       return true
     })
     arr = [...arr].sort((a, b) => {
       let av = a[sortKey], bv = b[sortKey]
       if (sortKey === 'followers') { av = Number(av) || 0; bv = Number(bv) || 0 }
+      if (sortKey === 'collab') { av = collabCount[a.id] || 0; bv = collabCount[b.id] || 0 }
       if (av < bv) return sortDir === 'asc' ? -1 : 1
       if (av > bv) return sortDir === 'asc' ? 1 : -1
       return 0
     })
     return arr
-  }, [kols, q, fTier, sortKey, sortDir])
+  }, [kols, q, fTier, fStatus, sortKey, sortDir, collabCount])
 
   const toggleSort = (k) => { if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); else { setSortKey(k); setSortDir('asc') } }
   const arrow = (k) => (sortKey === k ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '')
@@ -380,10 +426,14 @@ function KolList({ kols, works, onOpen }) {
     <div>
       <div className="page-head"><h1>Danh sách KOL</h1><span className="mono muted">{filtered.length}/{kols.length}</span></div>
       <div className="toolbar">
-        <input className="search" type="text" placeholder="Tìm tên, SĐT, email, chủ đề…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="search" type="text" placeholder="Tìm tên, SĐT, email, chủ đề, sản phẩm…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select style={{ width: 'auto' }} value={fTier} onChange={(e) => setFTier(e.target.value)}>
           <option value="">Mọi hạng</option>
           {TIERS.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+        </select>
+        <select style={{ width: 'auto' }} value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
+          <option value="">Mọi trạng thái</option>
+          {KOL_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
       </div>
       {filtered.length === 0 ? <div className="empty"><div className="big">∅</div>Chưa có KOL nào khớp.</div> : (
@@ -393,10 +443,14 @@ function KolList({ kols, works, onOpen }) {
               <tr>
                 <th className="sortable" onClick={() => toggleSort('name')}>KOL{arrow('name')}</th>
                 <th className="sortable" onClick={() => toggleSort('topic')}>Chủ đề{arrow('topic')}</th>
+                <th style={{ minWidth: 130 }}>Trạng thái</th>
                 <th className="sortable right" onClick={() => toggleSort('followers')}>Follow{arrow('followers')}</th>
                 <th>Hạng</th>
+                <th>Sản phẩm</th>
+                <th className="sortable center" onClick={() => toggleSort('collab')}>Số lần HT{arrow('collab')}</th>
                 <th>Đánh giá</th>
                 <th>Video đã thực hiện</th>
+                <th>Ghi chú</th>
                 <th className="right">Liên hệ</th>
               </tr>
             </thead>
@@ -407,8 +461,22 @@ function KolList({ kols, works, onOpen }) {
                   <tr key={k.id} onClick={() => onOpen(k)} style={{ cursor: 'pointer' }}>
                     <td><div className="cell-name">{k.name || '(chưa tên)'}</div><div className="cell-sub">{k.tiktok || '—'}</div></td>
                     <td>{k.topic || '—'}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <select value={k.kolStatus || ''} onChange={(e) => onUpdateKol(k.id, { kolStatus: e.target.value })}
+                        className={`pill ${(kolStatusOf(k.kolStatus) || {}).pill || 'gray'}`}
+                        style={{ border: 'none', fontWeight: 600, cursor: 'pointer', appearance: 'none', paddingRight: 8, minWidth: 120 }}>
+                        <option value="">— Chọn —</option>
+                        {KOL_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+                      </select>
+                    </td>
                     <td className="right mono">{fmtFollow(k.followers)}</td>
                     <td><span className="tag">{tierLabel(autoTier(k.followers))}</span></td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input type="text" value={k.product || ''} placeholder="—"
+                        onChange={(e) => onUpdateKol(k.id, { product: e.target.value })}
+                        style={{ width: 130, padding: '5px 8px', fontSize: 12.5 }} />
+                    </td>
+                    <td className="center mono">{collabCount[k.id] || 0}</td>
                     <td><Stars value={k.rating} readOnly /></td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {vids.length === 0 ? <span className="muted">—</span> : (
@@ -419,6 +487,11 @@ function KolList({ kols, works, onOpen }) {
                           {vids.length > 3 && <span className="cell-sub">+{vids.length - 3} nữa</span>}
                         </div>
                       )}
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <input type="text" value={k.note || ''} placeholder="—"
+                        onChange={(e) => onUpdateKol(k.id, { note: e.target.value })}
+                        style={{ width: 150, padding: '5px 8px', fontSize: 12.5 }} />
                     </td>
                     <td className="right nowrap mono cell-sub">{k.phone || '—'}</td>
                   </tr>
@@ -433,8 +506,44 @@ function KolList({ kols, works, onOpen }) {
 }
 
 // ============================ Pipeline (editable table) ============================
+// Định nghĩa các cột Pipeline (key + nhãn + rộng mặc định)
+const PIPE_COLS = [
+  ['kol', 'Tên KOL', 180],
+  ['follow', 'Follow', 80],
+  ['info', 'Thông tin', 80],
+  ['product', 'Sản phẩm', 140],
+  ['sampleQty', 'SL mẫu', 80],
+  ['status', 'Trạng thái', 140],
+  ['review', 'Review', 130],
+  ['reup', 'Reup', 90],
+  ['fee', 'Phí', 100],
+  ['shipChannel', 'Kênh gửi', 110],
+  ['orderCode', 'Mã đơn', 120],
+  ['sparkAds', 'Mã spark ads', 130],
+  ['shipDate', 'Ngày gửi', 150],
+  ['note', 'Ghi chú', 170],
+  ['videoLink', 'Link video', 180],
+  ['del', '', 50],
+]
+
 function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
   const [filter, setFilter] = useState('')
+  // độ rộng cột (lưu cục bộ trong trình duyệt)
+  const [colW, setColW] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem('kolmgr_pipe_cols')); if (s) return s } catch {}
+    const init = {}; PIPE_COLS.forEach(([k, , w]) => (init[k] = w)); return init
+  })
+  useEffect(() => { localStorage.setItem('kolmgr_pipe_cols', JSON.stringify(colW)) }, [colW])
+
+  function startColDrag(key, e) {
+    e.preventDefault(); e.stopPropagation()
+    const startX = e.clientX
+    const startW = colW[key] || 100
+    const onMove = (ev) => { setColW((c) => ({ ...c, [key]: Math.max(50, startW + (ev.clientX - startX)) })) }
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); document.body.style.userSelect = '' }
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
+  }
 
   function update(id, key, val) {
     onChange(works.map((w) => (w.id === id ? { ...w, [key]: val } : w)))
@@ -470,22 +579,17 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
       {rows.length === 0 ? <div className="empty"><div className="big">⊞</div>Chưa có lần làm việc nào. Bấm “+ Dòng mới”.</div> : (
         <div className="table-wrap">
           <table className="pipe-table">
+            <colgroup>
+              {PIPE_COLS.map(([k]) => <col key={k} style={{ width: colW[k] }} />)}
+            </colgroup>
             <thead>
               <tr>
-                <th style={{ minWidth: 170 }}>Tên KOL</th>
-                <th>Follow</th>
-                <th>Thông tin</th>
-                <th style={{ minWidth: 130 }}>Trạng thái</th>
-                <th style={{ minWidth: 120 }}>Review</th>
-                <th>Reup</th>
-                <th>Phí</th>
-                <th>Kênh gửi</th>
-                <th>Mã đơn</th>
-                <th style={{ minWidth: 120 }}>Mã spark ads</th>
-                <th>Ngày gửi</th>
-                <th style={{ minWidth: 160 }}>Ghi chú</th>
-                <th style={{ minWidth: 170 }}>Link video</th>
-                <th></th>
+                {PIPE_COLS.map(([k, label]) => (
+                  <th key={k} style={{ position: 'relative' }}>
+                    {label}
+                    {k !== 'del' && <span className="col-resizer" onMouseDown={(e) => startColDrag(k, e)} title="Kéo để đổi rộng cột" />}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -500,6 +604,8 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                   <td className="center">
                     {w.kolId ? <button className="btn sm" onClick={() => onOpenKol(w.kolId)}>Xem</button> : <span className="muted">—</span>}
                   </td>
+                  <td><input type="text" value={w.product || ''} onChange={(e) => update(w.id, 'product', e.target.value)} placeholder="Sản phẩm…" style={{ width: '100%' }} /></td>
+                  <td><input type="text" value={w.sampleQty || ''} onChange={(e) => update(w.id, 'sampleQty', e.target.value)} placeholder="SL" style={{ width: '100%' }} /></td>
                   <td>
                     <select value={w.status} onChange={(e) => update(w.id, 'status', e.target.value)}
                       className={`pill ${statusOf(w.status).pill}`} style={{ border: 'none', fontWeight: 600, cursor: 'pointer', appearance: 'none', paddingRight: 8 }}>
@@ -516,21 +622,21 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                     </select>
                   </td>
                   <td>
-                    <select value={w.canReup} onChange={(e) => update(w.id, 'canReup', e.target.value)} style={{ width: 78 }}>
+                    <select value={w.canReup} onChange={(e) => update(w.id, 'canReup', e.target.value)} style={{ width: '100%' }}>
                       <option value="">—</option><option value="co">Có</option><option value="khong">Không</option>
                     </select>
                   </td>
-                  <td><input type="number" value={w.fee} onChange={(e) => update(w.id, 'fee', Number(e.target.value))} style={{ width: 90 }} /></td>
-                  <td><input type="text" value={w.shipChannel} onChange={(e) => update(w.id, 'shipChannel', e.target.value)} placeholder="GHTK…" style={{ width: 100 }} /></td>
-                  <td><input type="text" value={w.orderCode} onChange={(e) => update(w.id, 'orderCode', e.target.value)} style={{ width: 110 }} /></td>
+                  <td><input type="number" value={w.fee} onChange={(e) => update(w.id, 'fee', Number(e.target.value))} style={{ width: '100%' }} /></td>
+                  <td><input type="text" value={w.shipChannel} onChange={(e) => update(w.id, 'shipChannel', e.target.value)} placeholder="GHTK…" style={{ width: '100%' }} /></td>
+                  <td><input type="text" value={w.orderCode} onChange={(e) => update(w.id, 'orderCode', e.target.value)} style={{ width: '100%' }} /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <input type="text" value={w.sparkAds || ''} onChange={(e) => update(w.id, 'sparkAds', e.target.value)} placeholder="mã…" style={{ width: 80 }} title={w.sparkAds || ''} />
+                      <input type="text" value={w.sparkAds || ''} onChange={(e) => update(w.id, 'sparkAds', e.target.value)} placeholder="mã…" style={{ flex: 1, minWidth: 40 }} title={w.sparkAds || ''} />
                       <button className="btn sm" disabled={!w.sparkAds} title="Copy mã spark ads"
                         onClick={() => { navigator.clipboard.writeText(w.sparkAds || '').then(() => flash('Đã copy mã spark ads')) }}>📋</button>
                     </div>
                   </td>
-                  <td><input type="date" value={w.shipDate} onChange={(e) => update(w.id, 'shipDate', e.target.value)} style={{ width: 140 }} /></td>
+                  <td><input type="date" value={w.shipDate} onChange={(e) => update(w.id, 'shipDate', e.target.value)} style={{ width: '100%' }} /></td>
                   <td className="note-cell"><AutoTextarea value={w.note} onChange={(e) => update(w.id, 'note', e.target.value)} rows={1} className="cell-note" /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -674,6 +780,13 @@ function KolDrawer({ kol, templates, works, onClose, onSave, onDelete, flash }) 
             <div className="form-row"><label>Facebook</label><input type="text" value={f.facebook} onChange={set('facebook')} /></div>
             <div className="form-row"><label>Chủ đề kênh</label><input type="text" value={f.topic} onChange={set('topic')} placeholder="Làm đẹp, Ẩm thực…" /></div>
             <div className="form-row"><label>Lượt follow</label><input type="number" value={f.followers} onChange={(e) => setVal('followers', Number(e.target.value))} /></div>
+            <div className="form-row"><label>Sản phẩm</label><input type="text" value={f.product || ''} onChange={set('product')} placeholder="Sản phẩm hợp tác" /></div>
+            <div className="form-row"><label>Trạng thái</label>
+              <select value={f.kolStatus || ''} onChange={set('kolStatus')}>
+                <option value="">— Chọn —</option>
+                {KOL_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+            </div>
           </div>
           <div className="section-title">Đánh giá</div>
           <div className="form-grid">
