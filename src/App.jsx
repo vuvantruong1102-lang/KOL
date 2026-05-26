@@ -26,6 +26,15 @@ const fmtDate = (iso) => {
 const fmtDateShort = (s) => (s ? new Date(s).toLocaleDateString('vi-VN') : '—')
 const daysSince = (s) => (s ? Math.floor((Date.now() - new Date(s).getTime()) / 86400000) : null)
 
+// màu badge cho cột Review
+function reviewPill(v) {
+  if (v === 'da_review') return 'green'
+  if (v === 'chua_review') return 'yellow'
+  if (v === 'mau_mien_phi') return 'blue'
+  return 'gray'
+}
+const reviewLabel = (v) => ({ da_review: 'Đã review', chua_review: 'Chưa review', mau_mien_phi: 'Mẫu miễn phí' }[v] || '—')
+
 function emptyKol() {
   return {
     id: uid(), name: '', phone: '', email: '', address: '',
@@ -41,10 +50,12 @@ function emptyWork(kol) {
     kolName: kol ? kol.name : '',
     followers: kol ? kol.followers : 0,
     status: 'da_lien_he',
+    review: '',           // '', 'da_review', 'chua_review', 'mau_mien_phi'
     canReup: '',          // '', 'co', 'khong'
     fee: 0,
     shipChannel: '',      // kênh gửi hàng
     orderCode: '',
+    sparkAds: '',         // mã spark ads
     shipDate: '',
     note: '',
     videoLink: '',
@@ -465,10 +476,12 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                 <th>Follow</th>
                 <th>Thông tin</th>
                 <th style={{ minWidth: 130 }}>Trạng thái</th>
+                <th style={{ minWidth: 120 }}>Review</th>
                 <th>Reup</th>
                 <th>Phí</th>
                 <th>Kênh gửi</th>
                 <th>Mã đơn</th>
+                <th style={{ minWidth: 120 }}>Mã spark ads</th>
                 <th>Ngày gửi</th>
                 <th style={{ minWidth: 160 }}>Ghi chú</th>
                 <th style={{ minWidth: 170 }}>Link video</th>
@@ -494,6 +507,15 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                     </select>
                   </td>
                   <td>
+                    <select value={w.review || ''} onChange={(e) => update(w.id, 'review', e.target.value)}
+                      className={`pill ${reviewPill(w.review)}`} style={{ border: 'none', fontWeight: 600, cursor: 'pointer', appearance: 'none', paddingRight: 8, minWidth: 110 }}>
+                      <option value="">— Review —</option>
+                      <option value="da_review">Đã review</option>
+                      <option value="chua_review">Chưa review</option>
+                      <option value="mau_mien_phi">Mẫu miễn phí</option>
+                    </select>
+                  </td>
+                  <td>
                     <select value={w.canReup} onChange={(e) => update(w.id, 'canReup', e.target.value)} style={{ width: 78 }}>
                       <option value="">—</option><option value="co">Có</option><option value="khong">Không</option>
                     </select>
@@ -501,6 +523,13 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                   <td><input type="number" value={w.fee} onChange={(e) => update(w.id, 'fee', Number(e.target.value))} style={{ width: 90 }} /></td>
                   <td><input type="text" value={w.shipChannel} onChange={(e) => update(w.id, 'shipChannel', e.target.value)} placeholder="GHTK…" style={{ width: 100 }} /></td>
                   <td><input type="text" value={w.orderCode} onChange={(e) => update(w.id, 'orderCode', e.target.value)} style={{ width: 110 }} /></td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input type="text" value={w.sparkAds || ''} onChange={(e) => update(w.id, 'sparkAds', e.target.value)} placeholder="mã…" style={{ width: 80 }} title={w.sparkAds || ''} />
+                      <button className="btn sm" disabled={!w.sparkAds} title="Copy mã spark ads"
+                        onClick={() => { navigator.clipboard.writeText(w.sparkAds || '').then(() => flash('Đã copy mã spark ads')) }}>📋</button>
+                    </div>
+                  </td>
                   <td><input type="date" value={w.shipDate} onChange={(e) => update(w.id, 'shipDate', e.target.value)} style={{ width: 140 }} /></td>
                   <td className="note-cell"><AutoTextarea value={w.note} onChange={(e) => update(w.id, 'note', e.target.value)} rows={1} className="cell-note" /></td>
                   <td>
@@ -669,13 +698,15 @@ function KolDrawer({ kol, templates, works, onClose, onSave, onDelete, flash }) 
           {myWorks.length === 0 ? <div className="muted" style={{ fontSize: 13 }}>Chưa có lần làm việc nào. Thêm ở tab Pipeline.</div> : (
             myWorks.map((w) => (
               <div key={w.id} className="hist">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
                   <span className={`pill ${statusOf(w.status).pill}`}>{statusOf(w.status).label}</span>
+                  {w.review && <span className={`pill ${reviewPill(w.review)}`}>{reviewLabel(w.review)}</span>}
                   {w.shipDate && <span className="cell-sub">Gửi {fmtDateShort(w.shipDate)}</span>}
                   {w.fee > 0 && <span className="mono cell-sub">{fmtMoney(w.fee)}</span>}
                 </div>
                 <div className="cell-sub">
                   {w.orderCode && <>Mã đơn: {w.orderCode} · </>}
+                  {w.sparkAds && <>Spark ads: {w.sparkAds} · </>}
                   {w.shipChannel && <>Kênh: {w.shipChannel} · </>}
                   Reup: {w.canReup === 'co' ? 'Có' : w.canReup === 'khong' ? 'Không' : '—'}
                 </div>
