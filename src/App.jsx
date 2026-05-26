@@ -3,7 +3,9 @@ import {
   loadKols, saveKols, loadWorks, saveWorks, loadVideos, saveVideos,
   loadTemplates, saveTemplates, loadLogs, addLog, clearLogs, uid,
   seedIfEmpty, exportAll, importAll,
+  loadAll, signInWithPassword, signOut, getSession,
 } from './lib/storage'
+import { hasSupabaseConfig, FIXED_EMAIL, supabase } from './lib/supabaseClient'
 import { WORK_STATUS, statusOf, TIERS, autoTier, tierLabel, RATING_TAGS } from './lib/constants'
 
 // ============================ Helpers ============================
@@ -51,7 +53,7 @@ function emptyWork(kol) {
 }
 
 // ============================ App ============================
-export default function App() {
+function AppInner({ onSignOut }) {
   const [tab, setTab] = useState('dashboard')
   const [kols, setKols] = useState([])
   const [works, setWorks] = useState([])
@@ -117,8 +119,9 @@ export default function App() {
           <DataMenu
             onExport={doExport}
             onExportCsv={() => exportCsv(kols, works)}
-            onImport={(data) => { importAll(data); setKols(loadKols()); setWorks(loadWorks()); setVideos(loadVideos()); setTemplates(loadTemplates()); setLogs(loadLogs()); flash('Đã nhập dữ liệu') }}
+            onImport={async (data) => { await importAll(data); setKols(loadKols()); setWorks(loadWorks()); setVideos(loadVideos()); setTemplates(loadTemplates()); setLogs(loadLogs()); flash('Đã nhập dữ liệu') }}
           />
+          {onSignOut && <button className="btn ghost block" style={{ fontSize: 12.5 }} onClick={onSignOut}>↩ Đăng xuất</button>}
         </div>
       </aside>
 
@@ -747,4 +750,89 @@ function Logs({ logs, onClear }) {
       )}
     </div>
   )
+}
+
+// ============================ Root: cấu hình + đăng nhập + loading ============================
+export default function Root() {
+  const [phase, setPhase] = useState('checking') // checking | config | login | loading | ready
+  const [pw, setPw] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!hasSupabaseConfig) { setPhase('config'); return }
+    getSession().then((session) => {
+      if (session) bootData()
+      else setPhase('login')
+    }).catch(() => setPhase('login'))
+  }, [])
+
+  async function bootData() {
+    setPhase('loading')
+    try {
+      await loadAll()
+      seedIfEmpty()
+      setPhase('ready')
+    } catch (e) {
+      setErr('Không tải được dữ liệu: ' + (e.message || e))
+      setPhase('login')
+    }
+  }
+
+  async function doLogin() {
+    if (!pw) return
+    setBusy(true); setErr('')
+    try {
+      await signInWithPassword(FIXED_EMAIL, pw)
+      await bootData()
+    } catch (e) {
+      setErr('Sai mật khẩu hoặc chưa tạo tài khoản. Xem lại hướng dẫn cài đặt.')
+    } finally { setBusy(false) }
+  }
+
+  async function doLogout() {
+    await signOut()
+    setPw(''); setPhase('login')
+  }
+
+  if (phase === 'checking' || phase === 'loading') {
+    return <div className="login-wrap"><div className="login-box"><div className="login-logo"><span className="mark">K</span></div><p className="muted" style={{ textAlign: 'center' }}>{phase === 'loading' ? 'Đang tải dữ liệu…' : 'Đang kiểm tra…'}</p></div></div>
+  }
+
+  if (phase === 'config') {
+    return (
+      <div className="login-wrap">
+        <div className="login-box">
+          <div className="login-logo"><span className="mark">K</span></div>
+          <h2 style={{ textAlign: 'center', margin: '4px 0 6px' }}>Chưa kết nối Supabase</h2>
+          <p className="muted" style={{ fontSize: 13 }}>
+            App chưa có khoá kết nối tới Supabase. Hãy mở file <code className="mono">HUONG_DAN_SUPABASE.md</code> và làm theo: tạo bảng dữ liệu, tạo tài khoản, rồi dán hai biến <code className="mono">VITE_SUPABASE_URL</code> và <code className="mono">VITE_SUPABASE_ANON_KEY</code> vào Vercel (hoặc file <code className="mono">.env</code>).
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // phase === 'login'
+  if (phase === 'login') {
+    return (
+      <div className="login-wrap">
+        <div className="login-box">
+          <div className="login-logo"><span className="mark">K</span></div>
+          <h2 style={{ textAlign: 'center', margin: '4px 0 2px' }}>KOL Manager</h2>
+          <p className="muted" style={{ textAlign: 'center', fontSize: 13, marginTop: 0 }}>Nhập mật khẩu để truy cập</p>
+          <input type="password" autoFocus value={pw} placeholder="Mật khẩu"
+            onChange={(e) => setPw(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') doLogin() }}
+            style={{ marginTop: 8 }} />
+          {err && <div className="login-err">{err}</div>}
+          <button className="btn primary block" style={{ marginTop: 12 }} disabled={busy} onClick={doLogin}>
+            {busy ? 'Đang vào…' : 'Đăng nhập'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return <AppInner onSignOut={doLogout} />
 }
