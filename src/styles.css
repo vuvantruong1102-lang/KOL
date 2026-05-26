@@ -185,10 +185,12 @@ tbody tr:hover { background: var(--surface-2); }
 .pipe-table input, .pipe-table select { padding: 6px 8px; font-size: 12.5px; border-color: var(--line); }
 .pipe-table input:focus, .pipe-table select:focus { box-shadow: none; border-color: var(--brand); }
 .cell-min { min-width: 90px; }
+.pipe-table .cell-note { min-height: 34px; min-width: 150px; resize: vertical; line-height: 1.4; white-space: pre-wrap; }
+.pipe-table td.note-cell { vertical-align: top; }
 
 /* autocomplete */
 .ac { position: relative; }
-.ac-list { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.1); z-index: 20; max-height: 220px; overflow-y: auto; margin-top: 2px; }
+.ac-list { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.14); z-index: 9999; max-height: 240px; overflow-y: auto; margin-top: 2px; }
 .ac-item { padding: 8px 11px; cursor: pointer; display: flex; justify-content: space-between; gap: 10px; }
 .ac-item:hover, .ac-item.active { background: var(--brand-soft); }
 .ac-item .sub { color: var(--txt-faint); font-size: 12px; }

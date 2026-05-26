@@ -191,28 +191,56 @@ function DataMenu({ onExport, onExportCsv, onImport }) {
   )
 }
 
+// textarea tự giãn cao theo nội dung
+function AutoTextarea({ value, onChange, ...rest }) {
+  const ref = useRef(null)
+  const resize = () => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' } }
+  useEffect(() => { resize() }, [value])
+  return <textarea ref={ref} value={value} onChange={(e) => { onChange(e); resize() }} {...rest} />
+}
+
 // ============================ KOL name autocomplete ============================
 function KolAutocomplete({ value, kols, onPick, onType, placeholder }) {
   const [open, setOpen] = useState(false)
   const [hi, setHi] = useState(0)
+  const [pos, setPos] = useState(null) // {left, top, width} cho dropdown fixed
   const wrapRef = useRef(null)
+  const inputRef = useRef(null)
   const matches = useMemo(() => {
     const q = (value || '').toLowerCase().trim()
     if (!q) return kols.slice(0, 8)
     return kols.filter((k) => (k.name || '').toLowerCase().includes(q)).slice(0, 8)
   }, [value, kols])
 
+  // tính vị trí dropdown ngay dưới input (dùng fixed để không bị overflow của bảng cắt)
+  function place() {
+    const el = inputRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setPos({ left: r.left, top: r.bottom + 2, width: Math.max(r.width, 200) })
+  }
+  function show() { place(); setOpen(true) }
+
   useEffect(() => {
+    if (!open) return
     const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    const reposition = () => place()
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
-  }, [])
+    // đóng/định vị lại khi cuộn bảng hoặc trang, khi resize
+    window.addEventListener('scroll', reposition, true)
+    window.addEventListener('resize', reposition)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      window.removeEventListener('scroll', reposition, true)
+      window.removeEventListener('resize', reposition)
+    }
+  }, [open])
 
   return (
     <div className="ac" ref={wrapRef}>
-      <input type="text" value={value} placeholder={placeholder || 'Gõ tên KOL…'}
-        onChange={(e) => { onType(e.target.value); setOpen(true); setHi(0) }}
-        onFocus={() => setOpen(true)}
+      <input ref={inputRef} type="text" value={value} placeholder={placeholder || 'Gõ tên KOL…'}
+        onChange={(e) => { onType(e.target.value); show(); setHi(0) }}
+        onFocus={show}
         onKeyDown={(e) => {
           if (!open) return
           if (e.key === 'ArrowDown') { e.preventDefault(); setHi((h) => Math.min(h + 1, matches.length - 1)) }
@@ -220,8 +248,8 @@ function KolAutocomplete({ value, kols, onPick, onType, placeholder }) {
           else if (e.key === 'Enter' && matches[hi]) { e.preventDefault(); onPick(matches[hi]); setOpen(false) }
           else if (e.key === 'Escape') setOpen(false)
         }} />
-      {open && matches.length > 0 && (
-        <div className="ac-list">
+      {open && matches.length > 0 && pos && (
+        <div className="ac-list" style={{ position: 'fixed', left: pos.left, top: pos.top, width: pos.width, margin: 0 }}>
           {matches.map((k, i) => (
             <div key={k.id} className={`ac-item ${i === hi ? 'active' : ''}`}
               onMouseEnter={() => setHi(i)} onMouseDown={(e) => { e.preventDefault(); onPick(k); setOpen(false) }}>
@@ -244,7 +272,7 @@ function Dashboard({ kols, works, onOpenKol, goTo }) {
   }, [works])
 
   const waiting = useMemo(() =>
-    works.filter((w) => w.status === 'cho_video' || (w.status === 'da_gui_hang' && !w.videoLink))
+    works.filter((w) => (w.status === 'da_gui_hang' || w.status === 'cho_video') && !w.videoLink)
       .map((w) => ({ w, days: daysSince(w.shipDate) }))
       .sort((a, b) => (b.days || 0) - (a.days || 0)), [works])
   const overdue = waiting.filter((x) => x.days !== null && x.days >= 7)
@@ -471,7 +499,7 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                   <td><input type="text" value={w.shipChannel} onChange={(e) => update(w.id, 'shipChannel', e.target.value)} placeholder="GHTK…" style={{ width: 100 }} /></td>
                   <td><input type="text" value={w.orderCode} onChange={(e) => update(w.id, 'orderCode', e.target.value)} style={{ width: 110 }} /></td>
                   <td><input type="date" value={w.shipDate} onChange={(e) => update(w.id, 'shipDate', e.target.value)} style={{ width: 140 }} /></td>
-                  <td><input type="text" value={w.note} onChange={(e) => update(w.id, 'note', e.target.value)} /></td>
+                  <td className="note-cell"><AutoTextarea value={w.note} onChange={(e) => update(w.id, 'note', e.target.value)} rows={1} className="cell-note" /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                       <input type="url" value={w.videoLink} onChange={(e) => update(w.id, 'videoLink', e.target.value)} placeholder="https://…" />
@@ -500,15 +528,18 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
   function delRow(v) { if (!confirm('Xoá dòng này?')) return; onChange(videos.filter((x) => x.id !== v.id), 'Xoá video thư viện', v.kolName || '—'); flash('Đã xoá') }
   function commit() { onChange(videos, 'Cập nhật thư viện video', `${videos.length} dòng`); flash('Đã lưu') }
 
-  // gợi ý: kéo video từ Pipeline vào nếu chưa có
-  const pipelineVideos = useMemo(() =>
-    works.filter((w) => w.videoLink).map((w) => ({ kolName: w.kolName, kolId: w.kolId, link: w.videoLink })), [works])
+  // Link video tự lấy từ Pipeline: tìm các work có videoLink của đúng KOL
+  function pipelineLinksFor(v) {
+    return works
+      .filter((w) => w.videoLink && (v.kolId ? w.kolId === v.kolId : w.kolName === v.kolName))
+      .map((w) => w.videoLink)
+  }
 
   return (
     <div>
       <div className="page-head">
         <h1>Thư viện video</h1>
-        <span className="muted" style={{ fontSize: 13 }}>Lưu link tải video của từng KOL</span>
+        <span className="muted" style={{ fontSize: 13 }}>Link video tự lấy từ Pipeline theo KOL · điền thêm link tải</span>
         <div className="spacer" />
         <button className="btn" onClick={commit}>Lưu</button>
         <button className="btn primary" onClick={addRow}>+ Dòng mới</button>
@@ -516,49 +547,51 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
 
       {videos.length === 0 ? <div className="empty"><div className="big">▶</div>Chưa có video nào. Bấm “+ Dòng mới”.</div> : (
         <div className="table-wrap">
-          <table className="pipe-table" style={{ minWidth: 600 }}>
-            <thead><tr><th style={{ minWidth: 220 }}>Tên KOL</th><th>Link tải video</th><th></th></tr></thead>
+          <table className="pipe-table" style={{ minWidth: 800 }}>
+            <thead>
+              <tr>
+                <th style={{ minWidth: 110 }}>Ngày</th>
+                <th style={{ minWidth: 200 }}>KOL</th>
+                <th style={{ minWidth: 230 }}>Link video (từ Pipeline)</th>
+                <th style={{ minWidth: 230 }}>Link tải video</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody>
-              {videos.map((v) => (
-                <tr key={v.id}>
-                  <td><KolAutocomplete value={v.kolName} kols={kols} onType={(val) => update(v.id, 'kolName', val)} onPick={(k) => pickKol(v.id, k)} /></td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <input type="url" value={v.downloadLink} onChange={(e) => update(v.id, 'downloadLink', e.target.value)} placeholder="https://… link tải" />
-                      {v.downloadLink && <a className="linkout" href={v.downloadLink} target="_blank" rel="noreferrer">⬇</a>}
-                    </div>
-                  </td>
-                  <td><button className="btn danger sm" onClick={() => delRow(v)}>✕</button></td>
-                </tr>
-              ))}
+              {videos.map((v) => {
+                const links = pipelineLinksFor(v)
+                return (
+                  <tr key={v.id}>
+                    <td className="mono nowrap muted">{fmtDateShort(v.createdAt)}</td>
+                    <td><KolAutocomplete value={v.kolName} kols={kols} onType={(val) => update(v.id, 'kolName', val)} onPick={(k) => pickKol(v.id, k)} /></td>
+                    <td>
+                      {links.length === 0 ? <span className="muted">— chưa có trong Pipeline —</span> : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {links.map((l, i) => <a key={i} className="linkout" href={l} target="_blank" rel="noreferrer">▶ {l.slice(0, 38)}{l.length > 38 ? '…' : ''}</a>)}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <input type="url" value={v.downloadLink} onChange={(e) => update(v.id, 'downloadLink', e.target.value)} placeholder="https://… link tải" />
+                        {v.downloadLink && <a className="linkout" href={v.downloadLink} target="_blank" rel="noreferrer">⬇</a>}
+                      </div>
+                    </td>
+                    <td><button className="btn danger sm" onClick={() => delRow(v)}>✕</button></td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
-
-      {pipelineVideos.length > 0 && (
-        <div className="panel" style={{ marginTop: 18 }}>
-          <h3 style={{ marginTop: 0, fontSize: 14 }}>Video có sẵn trong Pipeline</h3>
-          <p className="muted" style={{ fontSize: 12.5, marginTop: -4 }}>Bấm “+ Lưu” để thêm nhanh vào thư viện.</p>
-          <div className="table-wrap" style={{ border: 'none' }}>
-            <table>
-              <thead><tr><th>KOL</th><th>Link video</th><th className="right"></th></tr></thead>
-              <tbody>
-                {pipelineVideos.map((pv, i) => (
-                  <tr key={i}>
-                    <td className="cell-name">{pv.kolName || '—'}</td>
-                    <td><a className="linkout" href={pv.link} target="_blank" rel="noreferrer">{pv.link.slice(0, 50)}{pv.link.length > 50 ? '…' : ''}</a></td>
-                    <td className="right"><button className="btn sm" onClick={() => { onChange([{ id: uid(), kolId: pv.kolId, kolName: pv.kolName, downloadLink: pv.link, createdAt: new Date().toISOString() }, ...videos]); flash('Đã thêm vào thư viện') }}>+ Lưu</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
+        Cột “Link video” tự hiện link bạn đã nhập ở Pipeline cho KOL tương ứng. Cột “Link tải video” bạn tự dán link tải về.
+      </p>
     </div>
   )
 }
+
 
 // ============================ Stars ============================
 function Stars({ value = 0, onChange, readOnly }) {
