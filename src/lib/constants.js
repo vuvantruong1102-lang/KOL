@@ -3,11 +3,14 @@
 export const WORK_STATUS = [
   { key: 'da_lien_he',  label: 'Đã liên hệ',  pill: 'blue'   },
   { key: 'da_gui_hang', label: 'Đã gửi hàng', pill: 'yellow' },
-  { key: 'cho_video',   label: 'Chờ video',   pill: 'purple' },
   { key: 'hoan_thanh',  label: 'Hoàn thành',  pill: 'green'  },
   { key: 'tu_choi',     label: 'Từ chối',     pill: 'red'    },
 ]
-export const statusOf = (key) => WORK_STATUS.find((s) => s.key === key) || WORK_STATUS[0]
+export const statusOf = (key) => {
+  // dữ liệu cũ có thể còn 'cho_video' — quy về 'Đã gửi hàng'
+  if (key === 'cho_video') return WORK_STATUS.find((s) => s.key === 'da_gui_hang')
+  return WORK_STATUS.find((s) => s.key === key) || WORK_STATUS[0]
+}
 
 // Phân hạng KOL theo follow
 export const TIERS = [
