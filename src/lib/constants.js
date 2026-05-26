@@ -1,26 +1,22 @@
-// Các giai đoạn trong phễu làm việc với KOL (pipeline / kanban)
-export const STAGES = [
-  { key: 'tiem_nang',   label: 'Tiềm năng',     color: '#9aa0a6' },
-  { key: 'da_lien_he',  label: 'Đã liên hệ',    color: '#4f8cff' },
-  { key: 'dam_phan',    label: 'Đang đàm phán', color: '#a78bfa' },
-  { key: 'da_chot',     label: 'Đã chốt',       color: '#22b8cf' },
-  { key: 'da_gui_hang', label: 'Đã gửi hàng',   color: '#fab005' },
-  { key: 'cho_video',   label: 'Chờ video',     color: '#ff922b' },
-  { key: 'hoan_thanh',  label: 'Hoàn thành',    color: '#37b24d' },
-  { key: 'tu_choi',     label: 'Từ chối',       color: '#fa5252' },
+// Trạng thái của mỗi LẦN làm việc với KOL (dùng cho Pipeline + Danh sách)
+// pill class quyết định màu badge.
+export const WORK_STATUS = [
+  { key: 'da_lien_he',  label: 'Đã liên hệ',  pill: 'blue'   },
+  { key: 'da_gui_hang', label: 'Đã gửi hàng', pill: 'yellow' },
+  { key: 'cho_video',   label: 'Chờ video',   pill: 'purple' },
+  { key: 'hoan_thanh',  label: 'Hoàn thành',  pill: 'green'  },
+  { key: 'tu_choi',     label: 'Từ chối',     pill: 'red'    },
 ]
+export const statusOf = (key) => WORK_STATUS.find((s) => s.key === key) || WORK_STATUS[0]
 
-export const stageOf = (key) => STAGES.find((s) => s.key === key) || STAGES[0]
-
-// Phân hạng KOL theo lượng follow
+// Phân hạng KOL theo follow
 export const TIERS = [
-  { key: 'koc',   label: 'KOC (< 10k)' },
-  { key: 'nano',  label: 'Nano (10k–50k)' },
-  { key: 'micro', label: 'Micro (50k–200k)' },
-  { key: 'macro', label: 'Macro (200k–1M)' },
-  { key: 'mega',  label: 'Mega (> 1M)' },
+  { key: 'koc',   label: 'KOC' },
+  { key: 'nano',  label: 'Nano' },
+  { key: 'micro', label: 'Micro' },
+  { key: 'macro', label: 'Macro' },
+  { key: 'mega',  label: 'Mega' },
 ]
-
 export function autoTier(followers) {
   const f = Number(followers) || 0
   if (f >= 1_000_000) return 'mega'
@@ -29,16 +25,6 @@ export function autoTier(followers) {
   if (f >= 10_000) return 'nano'
   return 'koc'
 }
+export const tierLabel = (key) => (TIERS.find((t) => t.key === key) || {}).label || '—'
 
-export const tierLabel = (key) =>
-  (TIERS.find((t) => t.key === key) || {}).label || '—'
-
-// Tag đánh giá nhanh
-export const RATING_TAGS = [
-  'Uy tín',
-  'Đăng đúng hạn',
-  'Tương tác tốt',
-  'Hay quên',
-  'Trễ deadline',
-  'Giá tốt',
-]
+export const RATING_TAGS = ['Uy tín', 'Đăng đúng hạn', 'Tương tác tốt', 'Hay quên', 'Trễ deadline', 'Giá tốt']
