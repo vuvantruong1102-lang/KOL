@@ -1,6 +1,8 @@
 # KOL Manager
 
-Webapp quản lý danh sách KOL và theo dõi việc làm việc cùng KOL. Chạy hoàn toàn trên trình duyệt, **dữ liệu lưu cục bộ (localStorage)** — không cần backend, không cần đăng nhập.
+Webapp quản lý danh sách KOL và theo dõi việc làm việc cùng KOL. Có **đăng nhập bằng mật khẩu** và lưu dữ liệu trên **Supabase** (đám mây) — vào từ máy/trình duyệt nào cũng thấy, không lo mất khi xoá cache.
+
+> ⚙️ **Lần đầu dùng phải làm theo `HUONG_DAN_SUPABASE.md`** để kết nối Supabase (tạo bảng, tạo tài khoản, dán khoá). Chưa làm bước này app sẽ hiện màn "Chưa kết nối Supabase".
 
 ## Tính năng
 
@@ -39,4 +41,4 @@ npm run dev
 ```
 
 ## Lưu ý về dữ liệu
-Dữ liệu lưu trong localStorage của trình duyệt — **mỗi máy/trình duyệt giữ dữ liệu riêng**, và xoá cache trình duyệt sẽ mất dữ liệu. Hãy dùng **Dữ liệu → Xuất backup** định kỳ. Nếu sau này cần nhiều người trong team dùng chung, cần nâng cấp lên database thật (ví dụ Supabase) — khi đó nhắn để mình hỗ trợ.
+Dữ liệu lưu trên **Supabase** (đám mây), bảo vệ bằng đăng nhập mật khẩu — vào từ máy nào cũng thấy, không mất khi xoá cache trình duyệt. Vẫn nên thỉnh thoảng **Dữ liệu → Xuất backup** cho chắc. Đổi mật khẩu / quản lý tài khoản: xem `HUONG_DAN_SUPABASE.md`.
