@@ -819,14 +819,13 @@ export default function Root() {
       <div className="login-wrap">
         <div className="login-box">
           <div className="login-logo"><span className="mark">K</span></div>
-          <h2 style={{ textAlign: 'center', margin: '4px 0 2px' }}>KOL Manager</h2>
-          <p className="muted" style={{ textAlign: 'center', fontSize: 13, marginTop: 0 }}>Nhập mật khẩu để truy cập</p>
+          <h2>KOL Manager</h2>
+          <p className="muted">Nhập mật khẩu để truy cập</p>
           <input type="password" autoFocus value={pw} placeholder="Mật khẩu"
             onChange={(e) => setPw(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') doLogin() }}
-            style={{ marginTop: 8 }} />
+            onKeyDown={(e) => { if (e.key === 'Enter') doLogin() }} />
           {err && <div className="login-err">{err}</div>}
-          <button className="btn primary block" style={{ marginTop: 12 }} disabled={busy} onClick={doLogin}>
+          <button className="btn primary block" disabled={busy} onClick={doLogin}>
             {busy ? 'Đang vào…' : 'Đăng nhập'}
           </button>
         </div>
