@@ -31,3 +31,13 @@ export function autoTier(followers) {
 export const tierLabel = (key) => (TIERS.find((t) => t.key === key) || {}).label || '—'
 
 export const RATING_TAGS = ['Uy tín', 'Đăng đúng hạn', 'Tương tác tốt', 'Hay quên', 'Trễ deadline', 'Giá tốt']
+
+// Trạng thái tổng của một KOL (ở Danh sách KOL) — khác với trạng thái từng lần làm việc
+export const KOL_STATUS = [
+  { key: 'chua_lien_he', label: 'Chưa liên hệ', pill: 'gray'   },
+  { key: 'da_lien_he',   label: 'Đã liên hệ',   pill: 'blue'   },
+  { key: 'dang_hop_tac', label: 'Đang hợp tác', pill: 'yellow' },
+  { key: 'da_hop_tac',   label: 'Đã hợp tác',   pill: 'green'  },
+  { key: 'tu_choi',      label: 'Từ chối',      pill: 'red'    },
+]
+export const kolStatusOf = (key) => KOL_STATUS.find((s) => s.key === key)
