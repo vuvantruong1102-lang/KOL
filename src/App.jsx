@@ -61,6 +61,7 @@ function emptyWork(kol) {
     orderCode: '',
     sparkAds: '',         // mã spark ads
     shipDate: '',
+    proxyAmount: 0,       // tiền KOL đặt hộ
     note: '',
     videoLink: '',
     createdAt: new Date().toISOString(),
@@ -137,6 +138,7 @@ function AppInner({ onSignOut }) {
     ['list', '☰', 'Danh sách KOL'],
     ['pipeline', '⊞', 'Pipeline'],
     ['videos', '▶', 'Thư viện video'],
+    ['costs', '₫', 'Chi phí'],
     ['templates', '✎', 'Mẫu liên hệ'],
     ['logs', '≡', 'Log'],
   ]
@@ -186,6 +188,7 @@ function AppInner({ onSignOut }) {
           <VideoLibrary kols={kols} videos={videos} works={works}
             onChange={(next, a, d) => persistVideos(next, a, d)} flash={flash} />
         )}
+        {tab === 'costs' && <Costs kols={kols} works={works} />}
         {tab === 'templates' && (
           <Templates templates={templates} onSave={(t) => persistTemplates(t, null)}
             onLog={(a, d) => setLogs(addLog(a, d))} flash={flash} />
@@ -508,21 +511,19 @@ function KolList({ kols, works, onOpen, onUpdateKol }) {
 // ============================ Pipeline (editable table) ============================
 // Định nghĩa các cột Pipeline (key + nhãn + rộng mặc định)
 const PIPE_COLS = [
+  ['shipDate', 'Ngày gửi', 150],
   ['kol', 'Tên KOL', 180],
   ['follow', 'Follow', 80],
-  ['info', 'Thông tin', 80],
   ['product', 'Sản phẩm', 140],
   ['sampleQty', 'SL mẫu', 80],
   ['status', 'Trạng thái', 140],
   ['review', 'Review', 130],
   ['reup', 'Reup', 90],
-  ['fee', 'Phí', 100],
-  ['shipChannel', 'Kênh gửi', 110],
   ['orderCode', 'Mã đơn', 120],
-  ['sparkAds', 'Mã spark ads', 130],
-  ['shipDate', 'Ngày gửi', 150],
+  ['proxyAmount', 'Tiền KOL đặt hộ', 130],
   ['note', 'Ghi chú', 170],
   ['videoLink', 'Link video', 180],
+  ['sparkAds', 'Mã spark ads', 130],
   ['del', '', 50],
 ]
 
@@ -601,15 +602,22 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
             <tbody>
               {rows.map((w) => (
                 <tr key={w.id}>
+                  <td><input type="date" value={w.shipDate} onChange={(e) => update(w.id, 'shipDate', e.target.value)} style={{ width: '100%' }} /></td>
                   <td>
-                    <KolAutocomplete value={w.kolName} kols={kols}
-                      onType={(v) => update(w.id, 'kolName', v)}
-                      onPick={(k) => pickKol(w.id, k)} />
+                    {w.kolName ? (
+                      <span
+                        onClick={() => w.kolId && onOpenKol(w.kolId)}
+                        title={w.kolId ? 'Bấm để xem thông tin KOL' : 'KOL chưa có trong Danh sách KOL'}
+                        style={{ fontWeight: 600, cursor: w.kolId ? 'pointer' : 'default', color: w.kolId ? 'var(--accent, #2563eb)' : 'inherit', textDecoration: w.kolId ? 'underline' : 'none' }}>
+                        {w.kolName}
+                      </span>
+                    ) : (
+                      <KolAutocomplete value={w.kolName} kols={kols}
+                        onType={(v) => update(w.id, 'kolName', v)}
+                        onPick={(k) => pickKol(w.id, k)} />
+                    )}
                   </td>
                   <td className="mono nowrap">{fmtFollow(w.followers)}</td>
-                  <td className="center">
-                    {w.kolId ? <button className="btn sm" onClick={() => onOpenKol(w.kolId)}>Xem</button> : <span className="muted">—</span>}
-                  </td>
                   <td><input type="text" value={w.product || ''} onChange={(e) => update(w.id, 'product', e.target.value)} placeholder="Sản phẩm…" style={{ width: '100%' }} /></td>
                   <td><input type="text" value={w.sampleQty || ''} onChange={(e) => update(w.id, 'sampleQty', e.target.value)} placeholder="SL" style={{ width: '100%' }} /></td>
                   <td>
@@ -632,22 +640,20 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                       <option value="">—</option><option value="co">Có</option><option value="khong">Không</option>
                     </select>
                   </td>
-                  <td><input type="number" value={w.fee} onChange={(e) => update(w.id, 'fee', Number(e.target.value))} style={{ width: '100%' }} /></td>
-                  <td><input type="text" value={w.shipChannel} onChange={(e) => update(w.id, 'shipChannel', e.target.value)} placeholder="GHTK…" style={{ width: '100%' }} /></td>
                   <td><input type="text" value={w.orderCode} onChange={(e) => update(w.id, 'orderCode', e.target.value)} style={{ width: '100%' }} /></td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <input type="text" value={w.sparkAds || ''} onChange={(e) => update(w.id, 'sparkAds', e.target.value)} placeholder="mã…" style={{ flex: 1, minWidth: 40 }} title={w.sparkAds || ''} />
-                      <button className="btn sm" disabled={!w.sparkAds} title="Copy mã spark ads"
-                        onClick={() => { navigator.clipboard.writeText(w.sparkAds || '').then(() => flash('Đã copy mã spark ads')) }}>📋</button>
-                    </div>
-                  </td>
-                  <td><input type="date" value={w.shipDate} onChange={(e) => update(w.id, 'shipDate', e.target.value)} style={{ width: '100%' }} /></td>
+                  <td><input type="number" value={w.proxyAmount || 0} onChange={(e) => update(w.id, 'proxyAmount', Number(e.target.value))} placeholder="0" style={{ width: '100%' }} /></td>
                   <td className="note-cell"><AutoTextarea value={w.note} onChange={(e) => update(w.id, 'note', e.target.value)} rows={1} className="cell-note" /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                       <input type="url" value={w.videoLink} onChange={(e) => update(w.id, 'videoLink', e.target.value)} placeholder="https://…" />
                       {w.videoLink && <a className="linkout" href={w.videoLink} target="_blank" rel="noreferrer">▶</a>}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input type="text" value={w.sparkAds || ''} onChange={(e) => update(w.id, 'sparkAds', e.target.value)} placeholder="mã…" style={{ flex: 1, minWidth: 40 }} title={w.sparkAds || ''} />
+                      <button className="btn sm" disabled={!w.sparkAds} title="Copy mã spark ads"
+                        onClick={() => { navigator.clipboard.writeText(w.sparkAds || '').then(() => flash('Đã copy mã spark ads')) }}>📋</button>
                     </div>
                   </td>
                   <td><button className="btn danger sm" onClick={() => delRow(w)}>✕</button></td>
@@ -756,6 +762,79 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
       <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
         Tên KOL, follow và link video tự động lấy từ Pipeline (theo KOL trong Danh sách KOL). Cột “Link tải video” bạn tự dán và bấm “Lưu link tải”.
       </p>
+    </div>
+  )
+}
+
+
+// ============================ Costs (tiền KOL đặt hộ) ============================
+function Costs({ kols, works }) {
+  const [filter, setFilter] = useState('')
+
+  const rows = useMemo(() => {
+    const kolById = {}
+    kols.forEach((k) => { kolById[k.id] = k })
+    return works
+      .filter((w) => Number(w.proxyAmount) > 0)
+      .map((w) => {
+        const k = w.kolId ? kolById[w.kolId] : null
+        return {
+          id: w.id,
+          shipDate: w.shipDate || w.createdAt || null,
+          kolName: (k && k.name) || w.kolName || '—',
+          product: w.product || '—',
+          proxyAmount: Number(w.proxyAmount) || 0,
+        }
+      })
+      .sort((a, b) => (b.shipDate || '').localeCompare(a.shipDate || ''))
+  }, [works, kols])
+
+  const filtered = useMemo(() =>
+    rows.filter((r) => !filter || r.kolName.toLowerCase().includes(filter.toLowerCase())), [rows, filter])
+
+  const total = useMemo(() => filtered.reduce((s, r) => s + r.proxyAmount, 0), [filtered])
+
+  return (
+    <div>
+      <div className="page-head">
+        <h1>Chi phí</h1>
+        <span className="muted" style={{ fontSize: 13 }}>Tiền KOL đặt hộ — tự lấy từ cột “Tiền KOL đặt hộ” ở Pipeline</span>
+        <div className="spacer" />
+        <input type="text" placeholder="Lọc theo tên…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 180 }} />
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="empty"><div className="big">₫</div>Chưa có khoản đặt hộ nào. Điền “Tiền KOL đặt hộ” cho một dòng ở tab Pipeline.</div>
+      ) : (
+        <div className="table-wrap">
+          <table className="pipe-table" style={{ minWidth: 700 }}>
+            <thead>
+              <tr>
+                <th style={{ minWidth: 120 }}>Ngày gửi</th>
+                <th style={{ minWidth: 200 }}>Tên KOL</th>
+                <th style={{ minWidth: 200 }}>Mặt hàng</th>
+                <th style={{ minWidth: 140, textAlign: 'right' }}>Số tiền đặt hộ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id}>
+                  <td className="mono nowrap muted">{fmtDateShort(r.shipDate)}</td>
+                  <td style={{ fontWeight: 600 }}>{r.kolName}</td>
+                  <td>{r.product}</td>
+                  <td className="mono nowrap" style={{ textAlign: 'right' }}>{fmtMoney(r.proxyAmount)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'right', fontWeight: 600 }}>Tổng cộng</td>
+                <td className="mono nowrap" style={{ textAlign: 'right', fontWeight: 700 }}>{fmtMoney(total)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
