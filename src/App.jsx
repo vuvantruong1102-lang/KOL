@@ -666,71 +666,95 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
 
 // ============================ Video Library ============================
 function VideoLibrary({ kols, videos, works, onChange, flash }) {
-  function update(id, key, val) { onChange(videos.map((v) => (v.id === id ? { ...v, [key]: val } : v))) }
-  function pickKol(id, kol) { onChange(videos.map((v) => (v.id === id ? { ...v, kolId: kol.id, kolName: kol.name } : v))) }
-  function addRow() { onChange([{ id: uid(), kolId: '', kolName: '', downloadLink: '', createdAt: new Date().toISOString() }, ...videos]) }
-  function delRow(v) { if (!confirm('Xoá dòng này?')) return; onChange(videos.filter((x) => x.id !== v.id), 'Xoá video thư viện', v.kolName || '—'); flash('Đã xoá') }
-  function commit() { onChange(videos, 'Cập nhật thư viện video', `${videos.length} dòng`); flash('Đã lưu') }
+  const [filter, setFilter] = useState('')
 
-  // Link video tự lấy từ Pipeline: tìm các work có videoLink của đúng KOL
-  function pipelineLinksFor(v) {
+  // Mỗi link video trong Pipeline = 1 dòng. Thông tin KOL lấy từ Danh sách KOL theo kolId.
+  const rows = useMemo(() => {
+    const kolById = {}
+    kols.forEach((k) => { kolById[k.id] = k })
     return works
-      .filter((w) => w.videoLink && (v.kolId ? w.kolId === v.kolId : w.kolName === v.kolName))
-      .map((w) => w.videoLink)
+      .filter((w) => w.videoLink && w.videoLink.trim())
+      .map((w) => {
+        const k = w.kolId ? kolById[w.kolId] : null
+        return {
+          workId: w.id,
+          kolName: (k && k.name) || w.kolName || '—',
+          followers: (k && k.followers) ?? w.followers,
+          videoLink: w.videoLink.trim(),
+          createdAt: w.shipDate || w.createdAt || null,
+        }
+      })
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  }, [works, kols])
+
+  const filtered = useMemo(() =>
+    rows.filter((r) => !filter || r.kolName.toLowerCase().includes(filter.toLowerCase())), [rows, filter])
+
+  // Link tải nhập tay, lưu bền vững theo workId trong "videos"
+  const downloadByWork = useMemo(() => {
+    const m = {}
+    videos.forEach((v) => { if (v.workId) m[v.workId] = v.downloadLink || '' })
+    return m
+  }, [videos])
+
+  function setDownload(workId, val) {
+    const exists = videos.some((v) => v.workId === workId)
+    const next = exists
+      ? videos.map((v) => (v.workId === workId ? { ...v, downloadLink: val } : v))
+      : [...videos, { id: uid(), workId, downloadLink: val }]
+    onChange(next)
   }
+  function commit() { onChange(videos, 'Cập nhật thư viện video', `${rows.length} video`); flash('Đã lưu') }
 
   return (
     <div>
       <div className="page-head">
         <h1>Thư viện video</h1>
-        <span className="muted" style={{ fontSize: 13 }}>Link video tự lấy từ Pipeline theo KOL · điền thêm link tải</span>
+        <span className="muted" style={{ fontSize: 13 }}>Tên KOL & link video tự lấy từ Danh sách KOL và Pipeline · mỗi video một dòng</span>
         <div className="spacer" />
-        <button className="btn" onClick={commit}>Lưu</button>
-        <button className="btn primary" onClick={addRow}>+ Dòng mới</button>
+        <input type="text" placeholder="Lọc theo tên…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 180 }} />
+        <button className="btn" onClick={commit}>Lưu link tải</button>
       </div>
 
-      {videos.length === 0 ? <div className="empty"><div className="big">▶</div>Chưa có video nào. Bấm “+ Dòng mới”.</div> : (
+      {filtered.length === 0 ? (
+        <div className="empty"><div className="big">▶</div>Chưa có video nào. Hãy điền “Link video” cho một dòng ở tab Pipeline.</div>
+      ) : (
         <div className="table-wrap">
           <table className="pipe-table" style={{ minWidth: 800 }}>
             <thead>
               <tr>
                 <th style={{ minWidth: 110 }}>Ngày</th>
                 <th style={{ minWidth: 200 }}>KOL</th>
+                <th style={{ minWidth: 110 }}>Follow</th>
                 <th style={{ minWidth: 230 }}>Link video (từ Pipeline)</th>
                 <th style={{ minWidth: 230 }}>Link tải video</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
-              {videos.map((v) => {
-                const links = pipelineLinksFor(v)
-                return (
-                  <tr key={v.id}>
-                    <td className="mono nowrap muted">{fmtDateShort(v.createdAt)}</td>
-                    <td><KolAutocomplete value={v.kolName} kols={kols} onType={(val) => update(v.id, 'kolName', val)} onPick={(k) => pickKol(v.id, k)} /></td>
-                    <td>
-                      {links.length === 0 ? <span className="muted">— chưa có trong Pipeline —</span> : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                          {links.map((l, i) => <a key={i} className="linkout" href={l} target="_blank" rel="noreferrer">▶ {l.slice(0, 38)}{l.length > 38 ? '…' : ''}</a>)}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                        <input type="url" value={v.downloadLink} onChange={(e) => update(v.id, 'downloadLink', e.target.value)} placeholder="https://… link tải" />
-                        {v.downloadLink && <a className="linkout" href={v.downloadLink} target="_blank" rel="noreferrer">⬇</a>}
-                      </div>
-                    </td>
-                    <td><button className="btn danger sm" onClick={() => delRow(v)}>✕</button></td>
-                  </tr>
-                )
-              })}
+              {filtered.map((r) => (
+                <tr key={r.workId}>
+                  <td className="mono nowrap muted">{fmtDateShort(r.createdAt)}</td>
+                  <td>{r.kolName}</td>
+                  <td className="mono nowrap">{fmtFollow(r.followers)}</td>
+                  <td>
+                    <a className="linkout" href={r.videoLink} target="_blank" rel="noreferrer">
+                      ▶ {r.videoLink.slice(0, 38)}{r.videoLink.length > 38 ? '…' : ''}
+                    </a>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      <input type="url" value={downloadByWork[r.workId] || ''} onChange={(e) => setDownload(r.workId, e.target.value)} placeholder="https://… link tải" />
+                      {downloadByWork[r.workId] && <a className="linkout" href={downloadByWork[r.workId]} target="_blank" rel="noreferrer">⬇</a>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
       )}
       <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
-        Cột “Link video” tự hiện link bạn đã nhập ở Pipeline cho KOL tương ứng. Cột “Link tải video” bạn tự dán link tải về.
+        Tên KOL, follow và link video tự động lấy từ Pipeline (theo KOL trong Danh sách KOL). Cột “Link tải video” bạn tự dán và bấm “Lưu link tải”.
       </p>
     </div>
   )
