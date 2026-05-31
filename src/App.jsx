@@ -562,8 +562,14 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
   }
   function commit() { onChange(works, 'Cập nhật Pipeline', `${works.length} dòng`); flash('Đã lưu') }
 
+  // Ẩn dòng đã xong: Trạng thái "Hoàn thành" + Review là "Mẫu miễn phí"/"Đã review" + đã điền Link video
+  const isDone = (w) =>
+    w.status === 'hoan_thanh' &&
+    (w.review === 'mau_mien_phi' || w.review === 'da_review') &&
+    !!(w.videoLink && w.videoLink.trim())
+
   const rows = useMemo(() =>
-    works.filter((w) => !filter || w.kolName.toLowerCase().includes(filter.toLowerCase())), [works, filter])
+    works.filter((w) => !isDone(w) && (!filter || w.kolName.toLowerCase().includes(filter.toLowerCase()))), [works, filter])
 
   return (
     <div>
