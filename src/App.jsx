@@ -673,6 +673,7 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
 // ============================ Video Library ============================
 function VideoLibrary({ kols, videos, works, onChange, flash }) {
   const [filter, setFilter] = useState('')
+  const [productFilter, setProductFilter] = useState('')
 
   // Mỗi link video trong Pipeline = 1 dòng. Thông tin KOL lấy từ Danh sách KOL theo kolId.
   const rows = useMemo(() => {
@@ -686,6 +687,7 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
           workId: w.id,
           kolName: (k && k.name) || w.kolName || '—',
           followers: (k && k.followers) ?? w.followers,
+          product: (w.product || '').trim(),
           videoLink: w.videoLink.trim(),
           createdAt: w.shipDate || w.createdAt || null,
         }
@@ -693,8 +695,18 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
   }, [works, kols])
 
+  // Danh sách sản phẩm có trong thư viện (để lọc)
+  const products = useMemo(() => {
+    const set = new Set()
+    rows.forEach((r) => { if (r.product) set.add(r.product) })
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'))
+  }, [rows])
+
   const filtered = useMemo(() =>
-    rows.filter((r) => !filter || r.kolName.toLowerCase().includes(filter.toLowerCase())), [rows, filter])
+    rows.filter((r) =>
+      (!filter || r.kolName.toLowerCase().includes(filter.toLowerCase())) &&
+      (!productFilter || r.product === productFilter)
+    ), [rows, filter, productFilter])
 
   // Link tải nhập tay, lưu bền vững theo workId trong "videos"
   const downloadByWork = useMemo(() => {
@@ -718,6 +730,10 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
         <h1>Thư viện video</h1>
         <span className="muted" style={{ fontSize: 13 }}>Tên KOL & link video tự lấy từ Danh sách KOL và Pipeline · mỗi video một dòng</span>
         <div className="spacer" />
+        <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} style={{ width: 180 }}>
+          <option value="">— Tất cả sản phẩm —</option>
+          {products.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
         <input type="text" placeholder="Lọc theo tên…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 180 }} />
         <button className="btn" onClick={commit}>Lưu link tải</button>
       </div>
@@ -732,6 +748,7 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
                 <th style={{ minWidth: 110 }}>Ngày</th>
                 <th style={{ minWidth: 200 }}>KOL</th>
                 <th style={{ minWidth: 110 }}>Follow</th>
+                <th style={{ minWidth: 150 }}>Sản phẩm</th>
                 <th style={{ minWidth: 230 }}>Link video (từ Pipeline)</th>
                 <th style={{ minWidth: 230 }}>Link tải video</th>
               </tr>
@@ -742,6 +759,7 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
                   <td className="mono nowrap muted">{fmtDateShort(r.createdAt)}</td>
                   <td>{r.kolName}</td>
                   <td className="mono nowrap">{fmtFollow(r.followers)}</td>
+                  <td>{r.product || <span className="muted">—</span>}</td>
                   <td>
                     <a className="linkout" href={r.videoLink} target="_blank" rel="noreferrer">
                       ▶ {r.videoLink.slice(0, 38)}{r.videoLink.length > 38 ? '…' : ''}
