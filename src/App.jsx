@@ -7,6 +7,7 @@ import {
 } from './lib/storage'
 import { hasSupabaseConfig, FIXED_EMAIL, supabase } from './lib/supabaseClient'
 import { WORK_STATUS, statusOf, TIERS, autoTier, tierLabel, RATING_TAGS, KOL_STATUS, kolStatusOf } from './lib/constants'
+import { canInstall, promptInstall, isStandalone } from './pwa.js'
 
 // ============================ Helpers ============================
 // Format số lượt follow kiểu 1k, 10k, 1.2M
@@ -78,6 +79,18 @@ function AppInner({ onSignOut }) {
   const [logs, setLogs] = useState([])
   const [editing, setEditing] = useState(null)
   const [toast, setToast] = useState('')
+
+  // Nút cài đặt PWA: chỉ hiện khi trình duyệt báo có thể cài và app chưa ở chế độ standalone
+  const [showInstall, setShowInstall] = useState(() => canInstall() && !isStandalone())
+  useEffect(() => {
+    const onChange = (e) => setShowInstall(!!e.detail && !isStandalone())
+    window.addEventListener('pwa-installable', onChange)
+    return () => window.removeEventListener('pwa-installable', onChange)
+  }, [])
+  async function handleInstall() {
+    const ok = await promptInstall()
+    if (ok) { setShowInstall(false); flash('Đang cài đặt app…') }
+  }
 
   // độ rộng + ẩn/hiện sidebar (lưu cục bộ trong trình duyệt cho tiện, không lên DB)
   const [sidebarW, setSidebarW] = useState(() => Number(localStorage.getItem('kolmgr_sidebar_w')) || 220)
@@ -169,6 +182,7 @@ function AppInner({ onSignOut }) {
               onImport={async (data) => { await importAll(data); setKols(loadKols()); setWorks(loadWorks()); setVideos(loadVideos()); setTemplates(loadTemplates()); setLogs(loadLogs()); flash('Đã nhập dữ liệu') }}
             />
             {onSignOut && <button className="btn ghost block" style={{ fontSize: 12.5 }} onClick={onSignOut}>↩ Đăng xuất</button>}
+            {showInstall && <button className="btn ghost block" style={{ fontSize: 12.5 }} onClick={handleInstall}>⤓ Cài đặt app</button>}
           </div>
           <div className="sidebar-resizer" onMouseDown={startSidebarDrag} onTouchStart={startSidebarDrag} title="Kéo để đổi rộng" />
         </aside>
