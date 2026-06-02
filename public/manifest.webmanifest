@@ -1,0 +1,20 @@
+{
+  "name": "KOL Manager — Quản lý & làm việc với KOL",
+  "short_name": "KOL Manager",
+  "description": "Quản lý KOL, pipeline gửi mẫu, thư viện video và chi phí đặt hộ.",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f5f7",
+  "theme_color": "#dc143b",
+  "lang": "vi",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
