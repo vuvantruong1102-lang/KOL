@@ -8,6 +8,7 @@ import {
 import { hasSupabaseConfig, FIXED_EMAIL, supabase } from './lib/supabaseClient'
 import { WORK_STATUS, statusOf, TIERS, autoTier, tierLabel, RATING_TAGS, KOL_STATUS, kolStatusOf } from './lib/constants'
 import { canInstall, promptInstall, isStandalone } from './pwa.js'
+import { scoreKol, scoreToStars, scoreLabel } from './scoring.js'
 
 // ============================ Helpers ============================
 // Format số lượt follow kiểu 1k, 10k, 1.2M
@@ -123,6 +124,20 @@ function AppInner({ onSignOut }) {
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 1800) }
 
+  // Điểm KOL tự động: gom work theo KOL + số liệu video (videos theo workId) → scoreKol
+  const scoreByKol = useMemo(() => {
+    const statsByWork = {}
+    videos.forEach((v) => { if (v.workId) statsByWork[v.workId] = v })
+    const worksByKol = {}
+    works.forEach((w) => {
+      if (!w.kolId) return
+      ;(worksByKol[w.kolId] = worksByKol[w.kolId] || []).push(w)
+    })
+    const out = {}
+    kols.forEach((k) => { out[k.id] = scoreKol(worksByKol[k.id] || [], statsByWork) })
+    return out
+  }, [kols, works, videos])
+
   function persistKols(next, a, d) { setKols(next); saveKols(next); if (a) setLogs(addLog(a, d)) }
   function persistWorks(next, a, d) { setWorks(next); saveWorks(next); if (a) setLogs(addLog(a, d)) }
   function persistVideos(next, a, d) { setVideos(next); saveVideos(next); if (a) setLogs(addLog(a, d)) }
@@ -189,8 +204,8 @@ function AppInner({ onSignOut }) {
       )}
 
       <main className="content">
-        {tab === 'dashboard' && <Dashboard kols={kols} works={works} onOpenKol={setEditing} goTo={setTab} />}
-        {tab === 'list' && <KolList kols={kols} works={works} onOpen={setEditing}
+        {tab === 'dashboard' && <Dashboard kols={kols} works={works} scoreByKol={scoreByKol} onOpenKol={setEditing} goTo={setTab} />}
+        {tab === 'list' && <KolList kols={kols} works={works} scoreByKol={scoreByKol} onOpen={setEditing}
           onUpdateKol={(id, patch) => { const next = kols.map((k) => (k.id === id ? { ...k, ...patch } : k)); persistKols(next, 'Sửa KOL (nhanh)', (next.find((k) => k.id === id) || {}).name || '') }} />}
         {tab === 'pipeline' && (
           <Pipeline kols={kols} works={works} templates={templates}
@@ -211,7 +226,7 @@ function AppInner({ onSignOut }) {
       </main>
 
       {editing && (
-        <KolDrawer kol={editing} templates={templates} works={works}
+        <KolDrawer kol={editing} templates={templates} works={works} score={scoreByKol[editing.id]}
           onClose={() => setEditing(null)} onSave={upsertKol} onDelete={removeKol} flash={flash} />
       )}
       {toast && <div className="toast">{toast}</div>}
@@ -331,13 +346,21 @@ function KolAutocomplete({ value, kols, onPick, onType, placeholder }) {
   )
 }
 // ============================ Dashboard ============================
-function Dashboard({ kols, works, onOpenKol, goTo }) {
+function Dashboard({ kols, works, scoreByKol, onOpenKol, goTo }) {
   const stats = useMemo(() => {
     const byStatus = {}; WORK_STATUS.forEach((s) => (byStatus[s.key] = 0))
     let fee = 0
     works.forEach((w) => { byStatus[w.status] = (byStatus[w.status] || 0) + 1; fee += Number(w.fee) || 0 })
     return { byStatus, fee }
   }, [works])
+
+  // Bảng xếp hạng KOL theo điểm (chỉ tính KOL đã có số liệu)
+  const ranked = useMemo(() => {
+    return kols
+      .map((k) => ({ k, s: scoreByKol[k.id] }))
+      .filter((x) => x.s && x.s.hasData)
+      .sort((a, b) => b.s.score - a.s.score)
+  }, [kols, scoreByKol])
 
   const waiting = useMemo(() =>
     works.filter((w) => (w.status === 'da_gui_hang' || w.status === 'cho_video') && !w.videoLink)
@@ -373,6 +396,32 @@ function Dashboard({ kols, works, onOpenKol, goTo }) {
         </div>
       </div>
 
+      <div className="panel" style={{ marginBottom: 18 }}>
+        <h3 style={{ marginTop: 0, fontSize: 14 }}>Bảng xếp hạng KOL <span className="muted" style={{ fontWeight: 400, fontSize: 12.5 }}>— theo điểm tính từ đơn hàng, lượt xem, tương tác & uy tín</span></h3>
+        {ranked.length === 0 ? (
+          <div className="muted" style={{ padding: '12px 0' }}>Chưa có số liệu. Vào <a className="linkout" onClick={() => goTo('videos')} style={{ cursor: 'pointer' }}>Thư viện video</a> nhập lượt xem, tương tác, số đơn cho các video để app chấm điểm.</div>
+        ) : (
+          <div className="table-wrap" style={{ border: 'none' }}>
+            <table>
+              <thead><tr><th style={{ width: 36 }}>#</th><th>KOL</th><th className="center">Điểm</th><th className="center">Xếp loại</th><th className="right">Tổng đơn</th><th className="right">Tổng view</th><th className="center">Video</th></tr></thead>
+              <tbody>
+                {ranked.slice(0, 10).map(({ k, s }, i) => (
+                  <tr key={k.id} onClick={() => onOpenKol(k)} style={{ cursor: 'pointer' }}>
+                    <td className="mono muted">{i + 1}</td>
+                    <td><div className="cell-name">{k.name || '(chưa tên)'}</div><div className="cell-sub">{k.tiktok || '—'}</div></td>
+                    <td className="center"><ScoreBadge data={s} /></td>
+                    <td className="center"><span className="tag">{scoreLabel(s.score)}</span></td>
+                    <td className="right mono">{fmtNum(s.totals.orders)}</td>
+                    <td className="right mono">{fmtNum(s.totals.views)}</td>
+                    <td className="center mono">{s.totals.videos}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       <div className="panel">
         <h3 style={{ marginTop: 0, fontSize: 14 }}>Đơn đang chờ trả video <span className="muted" style={{ fontWeight: 400, fontSize: 12.5 }}>— các đơn “Đã gửi hàng” nhưng chưa có link video</span></h3>
         {waiting.length === 0 ? <div className="muted" style={{ padding: '12px 0' }}>Không có đơn nào đang chờ. 🎉</div> : (
@@ -399,7 +448,7 @@ function Dashboard({ kols, works, onOpenKol, goTo }) {
 }
 
 // ============================ KOL List ============================
-function KolList({ kols, works, onOpen, onUpdateKol }) {
+function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
   const [q, setQ] = useState('')
   const [fTier, setFTier] = useState('')
   const [fStatus, setFStatus] = useState('')
@@ -429,12 +478,13 @@ function KolList({ kols, works, onOpen, onUpdateKol }) {
       let av = a[sortKey], bv = b[sortKey]
       if (sortKey === 'followers') { av = Number(av) || 0; bv = Number(bv) || 0 }
       if (sortKey === 'collab') { av = collabCount[a.id] || 0; bv = collabCount[b.id] || 0 }
+      if (sortKey === 'score') { av = (scoreByKol[a.id] || {}).score || 0; bv = (scoreByKol[b.id] || {}).score || 0 }
       if (av < bv) return sortDir === 'asc' ? -1 : 1
       if (av > bv) return sortDir === 'asc' ? 1 : -1
       return 0
     })
     return arr
-  }, [kols, q, fTier, fStatus, sortKey, sortDir, collabCount])
+  }, [kols, q, fTier, fStatus, sortKey, sortDir, collabCount, scoreByKol])
 
   const toggleSort = (k) => { if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); else { setSortKey(k); setSortDir('asc') } }
   const arrow = (k) => (sortKey === k ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '')
@@ -465,6 +515,7 @@ function KolList({ kols, works, onOpen, onUpdateKol }) {
                 <th>Hạng</th>
                 <th>Sản phẩm</th>
                 <th className="sortable center" onClick={() => toggleSort('collab')}>Số lần HT{arrow('collab')}</th>
+                <th className="sortable center" onClick={() => toggleSort('score')}>Điểm KOL{arrow('score')}</th>
                 <th>Đánh giá</th>
                 <th>Video đã thực hiện</th>
                 <th>Ghi chú</th>
@@ -494,6 +545,7 @@ function KolList({ kols, works, onOpen, onUpdateKol }) {
                         style={{ width: 130, padding: '5px 8px', fontSize: 12.5 }} />
                     </td>
                     <td className="center mono">{collabCount[k.id] || 0}</td>
+                    <td className="center"><ScoreBadge data={scoreByKol[k.id]} /></td>
                     <td><Stars value={k.rating} readOnly /></td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {vids.length === 0 ? <span className="muted">—</span> : (
@@ -722,49 +774,53 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
       (!productFilter || r.product === productFilter)
     ), [rows, filter, productFilter])
 
-  // Link tải nhập tay, lưu bền vững theo workId trong "videos"
-  const downloadByWork = useMemo(() => {
+  // Số liệu nhập tay, lưu bền vững theo workId trong "videos"
+  // { workId, downloadLink, views, engagement, orders }
+  const statByWork = useMemo(() => {
     const m = {}
-    videos.forEach((v) => { if (v.workId) m[v.workId] = v.downloadLink || '' })
+    videos.forEach((v) => { if (v.workId) m[v.workId] = v })
     return m
   }, [videos])
 
-  function setDownload(workId, val) {
+  function setStat(workId, key, val) {
     const exists = videos.some((v) => v.workId === workId)
     const next = exists
-      ? videos.map((v) => (v.workId === workId ? { ...v, downloadLink: val } : v))
-      : [...videos, { id: uid(), workId, downloadLink: val }]
+      ? videos.map((v) => (v.workId === workId ? { ...v, [key]: val } : v))
+      : [...videos, { id: uid(), workId, downloadLink: '', views: 0, engagement: 0, orders: 0, [key]: val }]
     onChange(next)
   }
-  function commit() { onChange(videos, 'Cập nhật thư viện video', `${rows.length} video`); flash('Đã lưu') }
+  function commit() { onChange(videos, 'Cập nhật thư viện video', `${rows.length} video`); flash('Đã lưu số liệu') }
 
   return (
     <div>
       <div className="page-head">
         <h1>Thư viện video</h1>
-        <span className="muted" style={{ fontSize: 13 }}>Tên KOL & link video tự lấy từ Danh sách KOL và Pipeline · mỗi video một dòng</span>
+        <span className="muted" style={{ fontSize: 13 }}>Nhập lượt xem, tương tác, số đơn để chấm điểm KOL · mỗi video một dòng</span>
         <div className="spacer" />
         <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} style={{ width: 180 }}>
           <option value="">— Tất cả sản phẩm —</option>
           {products.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
         <input type="text" placeholder="Lọc theo tên…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 180 }} />
-        <button className="btn" onClick={commit}>Lưu link tải</button>
+        <button className="btn" onClick={commit}>Lưu số liệu</button>
       </div>
 
       {filtered.length === 0 ? (
         <div className="empty"><div className="big">▶</div>Chưa có video nào. Hãy điền “Link video” cho một dòng ở tab Pipeline.</div>
       ) : (
         <div className="table-wrap">
-          <table className="pipe-table" style={{ minWidth: 800 }}>
+          <table className="pipe-table" style={{ minWidth: 1100 }}>
             <thead>
               <tr>
                 <th style={{ minWidth: 110 }}>Ngày</th>
-                <th style={{ minWidth: 200 }}>KOL</th>
-                <th style={{ minWidth: 110 }}>Follow</th>
-                <th style={{ minWidth: 150 }}>Sản phẩm</th>
-                <th style={{ minWidth: 230 }}>Link video (từ Pipeline)</th>
-                <th style={{ minWidth: 230 }}>Link tải video</th>
+                <th style={{ minWidth: 180 }}>KOL</th>
+                <th style={{ minWidth: 90 }}>Follow</th>
+                <th style={{ minWidth: 130 }}>Sản phẩm</th>
+                <th style={{ minWidth: 200 }}>Link video</th>
+                <th style={{ minWidth: 100 }}>Lượt xem</th>
+                <th style={{ minWidth: 100 }}>Tương tác</th>
+                <th style={{ minWidth: 80 }}>Số đơn</th>
+                <th style={{ minWidth: 200 }}>Link tải video</th>
               </tr>
             </thead>
             <tbody>
@@ -776,13 +832,16 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
                   <td>{r.product || <span className="muted">—</span>}</td>
                   <td>
                     <a className="linkout" href={r.videoLink} target="_blank" rel="noreferrer">
-                      ▶ {r.videoLink.slice(0, 38)}{r.videoLink.length > 38 ? '…' : ''}
+                      ▶ {r.videoLink.slice(0, 30)}{r.videoLink.length > 30 ? '…' : ''}
                     </a>
                   </td>
+                  <td><input type="number" min="0" value={(statByWork[r.workId] && statByWork[r.workId].views) || ''} onChange={(e) => setStat(r.workId, 'views', Number(e.target.value))} placeholder="0" style={{ width: '100%' }} /></td>
+                  <td><input type="number" min="0" value={(statByWork[r.workId] && statByWork[r.workId].engagement) || ''} onChange={(e) => setStat(r.workId, 'engagement', Number(e.target.value))} placeholder="0" style={{ width: '100%' }} title="Like + comment + share" /></td>
+                  <td><input type="number" min="0" value={(statByWork[r.workId] && statByWork[r.workId].orders) || ''} onChange={(e) => setStat(r.workId, 'orders', Number(e.target.value))} placeholder="0" style={{ width: '100%' }} /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                      <input type="url" value={downloadByWork[r.workId] || ''} onChange={(e) => setDownload(r.workId, e.target.value)} placeholder="https://… link tải" />
-                      {downloadByWork[r.workId] && <a className="linkout" href={downloadByWork[r.workId]} target="_blank" rel="noreferrer">⬇</a>}
+                      <input type="url" value={(statByWork[r.workId] && statByWork[r.workId].downloadLink) || ''} onChange={(e) => setStat(r.workId, 'downloadLink', e.target.value)} placeholder="https://… link tải" />
+                      {statByWork[r.workId] && statByWork[r.workId].downloadLink && <a className="linkout" href={statByWork[r.workId].downloadLink} target="_blank" rel="noreferrer">⬇</a>}
                     </div>
                   </td>
                 </tr>
@@ -792,7 +851,7 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
         </div>
       )}
       <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
-        Tên KOL, follow và link video tự động lấy từ Pipeline (theo KOL trong Danh sách KOL). Cột “Link tải video” bạn tự dán và bấm “Lưu link tải”.
+        Nhập <b>Lượt xem</b>, <b>Tương tác</b> (like+comment+share) và <b>Số đơn</b> cho từng video → app tự chấm điểm KOL ở tab Tổng quan và Danh sách KOL. Bấm “Lưu số liệu” để lưu.
       </p>
     </div>
   )
@@ -872,6 +931,40 @@ function Costs({ kols, works }) {
 }
 
 
+// ============================ Score Badge ============================
+function scoreColor(score) {
+  if (score >= 80) return 'var(--ok)'
+  if (score >= 60) return '#16a34a'
+  if (score >= 40) return 'var(--warn)'
+  if (score >= 20) return '#d97706'
+  return 'var(--txt-faint)'
+}
+function ScoreBadge({ data, showStars = true }) {
+  if (!data || !data.hasData) return <span className="muted" title="Chưa có số liệu video">—</span>
+  const { score, stars } = data
+  const tip = `Điểm ${score}/100 · ${scoreLabel(score)}
+Đơn hàng: ${data.breakdown.orders} · Lượt xem: ${data.breakdown.views} · Tương tác: ${data.breakdown.engagement} · Uy tín: ${data.breakdown.reliability}
+Tổng: ${data.totals.orders} đơn · ${data.totals.views.toLocaleString('vi-VN')} view · ${data.totals.videos} video`
+  return (
+    <div title={tip} style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 1, cursor: 'default' }}>
+      <span className="mono" style={{ fontWeight: 700, fontSize: 14, color: scoreColor(score) }}>{score}</span>
+      {showStars && <span style={{ fontSize: 11, color: 'var(--warn)', lineHeight: 1 }}>{'★'.repeat(stars)}{'☆'.repeat(5 - stars)}</span>}
+    </div>
+  )
+}
+
+function ScoreBar({ label, v }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '3px 0' }}>
+      <span style={{ fontSize: 11.5, color: 'var(--txt-dim)', minWidth: 110 }}>{label}</span>
+      <span style={{ flex: 1, height: 6, background: 'var(--line)', borderRadius: 4, overflow: 'hidden' }}>
+        <span style={{ display: 'block', height: '100%', width: `${Math.max(0, Math.min(100, v))}%`, background: scoreColor(v) }} />
+      </span>
+      <span className="mono" style={{ fontSize: 11.5, minWidth: 26, textAlign: 'right' }}>{v}</span>
+    </div>
+  )
+}
+
 // ============================ Stars ============================
 function Stars({ value = 0, onChange, readOnly }) {
   return (
@@ -886,7 +979,7 @@ function Stars({ value = 0, onChange, readOnly }) {
 }
 
 // ============================ KOL Drawer ============================
-function KolDrawer({ kol, templates, works, onClose, onSave, onDelete, flash }) {
+function KolDrawer({ kol, templates, works, score, onClose, onSave, onDelete, flash }) {
   const [f, setF] = useState(() => JSON.parse(JSON.stringify(kol)))
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }))
   const setVal = (k, v) => setF((p) => ({ ...p, [k]: v }))
@@ -906,6 +999,27 @@ function KolDrawer({ kol, templates, works, onClose, onSave, onDelete, flash }) 
       <div className="drawer">
         <div className="drawer-head"><h2>{f.name || 'Thêm KOL mới'}</h2><span className="tag">{tier} · {fmtFollow(f.followers)}</span><button className="btn ghost" onClick={onClose}>✕</button></div>
         <div className="drawer-body">
+          {score && score.hasData && (
+            <div className="panel" style={{ marginBottom: 16, background: 'var(--bg)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                <div style={{ textAlign: 'center', minWidth: 70 }}>
+                  <div className="mono" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1, color: scoreColor(score.score) }}>{score.score}</div>
+                  <div style={{ fontSize: 12, color: 'var(--warn)' }}>{'★'.repeat(score.stars)}{'☆'.repeat(5 - score.stars)}</div>
+                  <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{scoreLabel(score.score)}</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div className="section-title" style={{ marginTop: 0 }}>Điểm KOL — từ lịch sử cộng tác</div>
+                  <ScoreBar label="Đơn hàng (40%)" v={score.breakdown.orders} />
+                  <ScoreBar label="Lượt xem (30%)" v={score.breakdown.views} />
+                  <ScoreBar label="Tương tác (18%)" v={score.breakdown.engagement} />
+                  <ScoreBar label="Uy tín (12%)" v={score.breakdown.reliability} />
+                  <div className="muted" style={{ fontSize: 11.5, marginTop: 6 }}>
+                    Tổng: {fmtNum(score.totals.orders)} đơn · {fmtNum(score.totals.views)} view · {fmtNum(score.totals.engagement)} tương tác · {score.totals.videos} video
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="section-title">Thông tin cá nhân</div>
           <div className="form-grid">
             <div className="form-row full"><label>Tên KOL</label><input type="text" value={f.name} onChange={set('name')} /></div>
