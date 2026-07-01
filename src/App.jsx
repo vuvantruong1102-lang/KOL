@@ -454,6 +454,11 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
   const [fStatus, setFStatus] = useState('')
   const [sortKey, setSortKey] = useState('createdAt')
   const [sortDir, setSortDir] = useState('desc')
+  // Lọc riêng từng cột (text): key cột -> chuỗi lọc
+  const [colFilters, setColFilters] = useState({})
+  const setColFilter = (key, val) => setColFilters((c) => ({ ...c, [key]: val }))
+  const clearColFilters = () => setColFilters({})
+  const hasColFilters = Object.values(colFilters).some((v) => (v || '').trim())
 
   // video + số lần hợp tác cho mỗi KOL, lấy từ works
   const videosByKol = useMemo(() => {
@@ -468,10 +473,27 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
   }, [works])
 
   const filtered = useMemo(() => {
+    const cf = colFilters
+    const match = (key, text) => {
+      const q = (cf[key] || '').trim().toLowerCase()
+      if (!q) return true
+      return String(text ?? '').toLowerCase().includes(q)
+    }
     let arr = kols.filter((k) => {
       if (fTier && autoTier(k.followers) !== fTier) return false
       if (fStatus && (k.kolStatus || '') !== fStatus) return false
       if (q) { const hay = `${k.name} ${k.phone} ${k.email} ${k.topic} ${k.tiktok} ${k.product || ''}`.toLowerCase(); if (!hay.includes(q.toLowerCase())) return false }
+      // Lọc riêng từng cột
+      if (!match('name', `${k.name || ''} ${k.tiktok || ''}`)) return false
+      if (!match('topic', k.topic)) return false
+      if (!match('status', (kolStatusOf(k.kolStatus) || {}).label || '')) return false
+      if (!match('followers', fmtFollow(k.followers))) return false
+      if (!match('tier', tierLabel(autoTier(k.followers)))) return false
+      if (!match('product', k.product)) return false
+      if (!match('collab', String(collabCount[k.id] || 0))) return false
+      if (!match('score', String((scoreByKol[k.id] || {}).score ?? ''))) return false
+      if (!match('note', k.note)) return false
+      if (!match('phone', k.phone)) return false
       return true
     })
     arr = [...arr].sort((a, b) => {
@@ -484,7 +506,7 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
       return 0
     })
     return arr
-  }, [kols, q, fTier, fStatus, sortKey, sortDir, collabCount, scoreByKol])
+  }, [kols, q, fTier, fStatus, sortKey, sortDir, collabCount, scoreByKol, colFilters])
 
   const toggleSort = (k) => { if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc')); else { setSortKey(k); setSortDir('asc') } }
   const arrow = (k) => (sortKey === k ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '')
@@ -502,6 +524,7 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
           <option value="">Mọi trạng thái</option>
           {KOL_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
+        {hasColFilters && <button className="btn sm" onClick={clearColFilters} title="Xoá bộ lọc từng cột">✕ Xoá lọc cột</button>}
       </div>
       {filtered.length === 0 ? <div className="empty"><div className="big">∅</div>Chưa có KOL nào khớp.</div> : (
         <div className="table-wrap">
@@ -520,6 +543,20 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                 <th>Video đã thực hiện</th>
                 <th>Ghi chú</th>
                 <th className="right">Liên hệ</th>
+              </tr>
+              <tr className="col-filter-row">
+                <th><input className="col-filter" value={colFilters.name || ''} onChange={(e) => setColFilter('name', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.topic || ''} onChange={(e) => setColFilter('topic', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.status || ''} onChange={(e) => setColFilter('status', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.followers || ''} onChange={(e) => setColFilter('followers', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.tier || ''} onChange={(e) => setColFilter('tier', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.product || ''} onChange={(e) => setColFilter('product', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.collab || ''} onChange={(e) => setColFilter('collab', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.score || ''} onChange={(e) => setColFilter('score', e.target.value)} placeholder="lọc…" /></th>
+                <th></th>
+                <th></th>
+                <th><input className="col-filter" value={colFilters.note || ''} onChange={(e) => setColFilter('note', e.target.value)} placeholder="lọc…" /></th>
+                <th><input className="col-filter" value={colFilters.phone || ''} onChange={(e) => setColFilter('phone', e.target.value)} placeholder="lọc…" /></th>
               </tr>
             </thead>
             <tbody>
@@ -754,6 +791,7 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
           kolName: (k && k.name) || w.kolName || '—',
           followers: (k && k.followers) ?? w.followers,
           product: (w.product || '').trim(),
+          sparkAds: (w.sparkAds || '').trim(),
           videoLink: w.videoLink.trim(),
           createdAt: w.shipDate || w.createdAt || null,
         }
@@ -816,6 +854,7 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
                 <th style={{ minWidth: 180 }}>KOL</th>
                 <th style={{ minWidth: 90 }}>Follow</th>
                 <th style={{ minWidth: 130 }}>Sản phẩm</th>
+                <th style={{ minWidth: 140 }}>Mã spark ads</th>
                 <th style={{ minWidth: 200 }}>Link video</th>
                 <th style={{ minWidth: 100 }}>Lượt xem</th>
                 <th style={{ minWidth: 100 }}>Tương tác</th>
@@ -830,6 +869,15 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
                   <td>{r.kolName}</td>
                   <td className="mono nowrap">{fmtFollow(r.followers)}</td>
                   <td>{r.product || <span className="muted">—</span>}</td>
+                  <td>
+                    {r.sparkAds ? (
+                      <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span className="mono" style={{ fontSize: 12.5 }} title={r.sparkAds}>{r.sparkAds.length > 14 ? r.sparkAds.slice(0, 14) + '…' : r.sparkAds}</span>
+                        <button className="btn sm" title="Copy mã spark ads"
+                          onClick={() => { navigator.clipboard.writeText(r.sparkAds).then(() => flash('Đã copy mã spark ads')) }}>📋</button>
+                      </div>
+                    ) : <span className="muted">—</span>}
+                  </td>
                   <td>
                     <a className="linkout" href={r.videoLink} target="_blank" rel="noreferrer">
                       ▶ {r.videoLink.slice(0, 30)}{r.videoLink.length > 30 ? '…' : ''}

@@ -140,6 +140,9 @@ thead th {
 }
 thead th.sortable { cursor: pointer; }
 thead th.sortable:hover { color: var(--txt); }
+.col-filter-row th { padding: 4px 6px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.col-filter { width: 100%; min-width: 40px; padding: 4px 7px; font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--txt); box-sizing: border-box; }
+.col-filter:focus { outline: none; border-color: var(--brand); }
 tbody td { padding: 10px 13px; border-bottom: 1px solid var(--line); vertical-align: middle; }
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--surface-2); }
