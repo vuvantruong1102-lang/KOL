@@ -34,7 +34,7 @@ export const RATING_TAGS = ['Uy tín', 'Đăng đúng hạn', 'Tương tác tố
 
 // Trạng thái tổng của một KOL (ở Danh sách KOL) — khác với trạng thái từng lần làm việc
 export const KOL_STATUS = [
-  { key: 'can_lien_he',  label: 'Cần liên hệ',  pill: 'red'    },
+  { key: 'can_lien_he',  label: 'Cần liên hệ',  pill: 'gold'   },
   { key: 'chua_lien_he', label: 'Chưa liên hệ', pill: 'gray'   },
   { key: 'da_lien_he',   label: 'Đã liên hệ',   pill: 'blue'   },
   { key: 'dang_hop_tac', label: 'Đang hợp tác', pill: 'yellow' },
