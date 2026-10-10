@@ -532,14 +532,14 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
           <table>
             <thead>
               <tr>
-                <th className="sortable" onClick={() => toggleSort('name')}>KOL{arrow('name')}</th>
-                <th className="sortable" onClick={() => toggleSort('topic')}>Chủ đề{arrow('topic')}</th>
-                <th style={{ minWidth: 130 }}>Trạng thái</th>
+                <th className="sortable" onClick={() => toggleSort('name')} style={{ width: 130 }}>KOL{arrow('name')}</th>
+                <th className="sortable" onClick={() => toggleSort('topic')} style={{ width: 90 }}>Chủ đề{arrow('topic')}</th>
+                <th style={{ width: 120 }}>Trạng thái</th>
                 <th className="sortable right" onClick={() => toggleSort('followers')}>Follow{arrow('followers')}</th>
                 <th>Hạng</th>
                 <th>Đánh giá</th>
                 <th>Video đã thực hiện</th>
-                <th>Ghi chú</th>
+                <th style={{ width: 320 }}>Ghi chú</th>
               </tr>
             </thead>
             <tbody>
@@ -552,7 +552,7 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                     <td onClick={(e) => e.stopPropagation()}>
                       <select value={k.kolStatus || ''} onChange={(e) => onUpdateKol(k.id, { kolStatus: e.target.value })}
                         className={`pill ${(kolStatusOf(k.kolStatus) || {}).pill || 'gray'}`}
-                        style={{ border: 'none', fontWeight: 600, cursor: 'pointer', appearance: 'none', paddingRight: 8, minWidth: 120 }}>
+                        style={{ border: 'none', fontWeight: 600, cursor: 'pointer', appearance: 'none', paddingRight: 8, minWidth: 100, maxWidth: '100%' }}>
                         <option value="">— Chọn —</option>
                         {KOL_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                       </select>
@@ -573,7 +573,7 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                     <td onClick={(e) => e.stopPropagation()}>
                       <input type="text" value={k.note || ''} placeholder="—"
                         onChange={(e) => onUpdateKol(k.id, { note: e.target.value })}
-                        style={{ width: 150, padding: '5px 8px', fontSize: 12.5 }} />
+                        style={{ width: '100%', minWidth: 300, padding: '5px 8px', fontSize: 12.5 }} />
                     </td>
                   </tr>
                 )
