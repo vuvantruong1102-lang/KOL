@@ -670,7 +670,7 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, fl
         ...emptyWork(k),
         id: `virtual-${k.id}`,
         _virtual: true,
-        status: 'da_lien_he',
+        status: 'can_lien_he',
         shipDate: (k.createdAt || new Date().toISOString()).slice(0, 10),
         note: k.note || '',
       }))
