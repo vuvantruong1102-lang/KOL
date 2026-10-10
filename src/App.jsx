@@ -164,7 +164,7 @@ function AppInner({ onSignOut }) {
   const nav = [
     ['dashboard', '◍', 'Tổng quan'],
     ['list', '☰', 'Danh sách KOL'],
-    ['pipeline', '⊞', 'Pipeline'],
+    ['pipeline', '⊞', 'KOL đang làm việc'],
     ['videos', '▶', 'Thư viện video'],
     ['costs', '₫', 'Chi phí'],
     ['templates', '✎', 'Mẫu liên hệ'],
@@ -211,6 +211,7 @@ function AppInner({ onSignOut }) {
           <Pipeline kols={kols} works={works} templates={templates}
             onChange={(next, a, d) => persistWorks(next, a, d)}
             onOpenKol={(id) => { const k = kols.find((x) => x.id === id); if (k) setEditing(k) }}
+            onUpdateKol={(id, patch) => { const next = kols.map((k) => (k.id === id ? { ...k, ...patch } : k)); persistKols(next, 'Sửa KOL (nhanh)', (next.find((k) => k.id === id) || {}).name || '') }}
             flash={flash} />
         )}
         {tab === 'videos' && (
@@ -524,7 +525,7 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
           <option value="">Mọi trạng thái</option>
           {KOL_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
-        {hasColFilters && <button className="btn sm" onClick={clearColFilters} title="Xoá bộ lọc từng cột">✕ Xoá lọc cột</button>}
+        <button className="btn primary" onClick={() => onOpen(emptyKol())}>+ Thêm KOL</button>
       </div>
       {filtered.length === 0 ? <div className="empty"><div className="big">∅</div>Chưa có KOL nào khớp.</div> : (
         <div className="table-wrap">
@@ -536,27 +537,11 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                 <th style={{ minWidth: 130 }}>Trạng thái</th>
                 <th className="sortable right" onClick={() => toggleSort('followers')}>Follow{arrow('followers')}</th>
                 <th>Hạng</th>
-                <th>Sản phẩm</th>
                 <th className="sortable center" onClick={() => toggleSort('collab')}>Số lần HT{arrow('collab')}</th>
                 <th className="sortable center" onClick={() => toggleSort('score')}>Điểm KOL{arrow('score')}</th>
                 <th>Đánh giá</th>
                 <th>Video đã thực hiện</th>
                 <th>Ghi chú</th>
-                <th className="right">Liên hệ</th>
-              </tr>
-              <tr className="col-filter-row">
-                <th><input className="col-filter" value={colFilters.name || ''} onChange={(e) => setColFilter('name', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.topic || ''} onChange={(e) => setColFilter('topic', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.status || ''} onChange={(e) => setColFilter('status', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.followers || ''} onChange={(e) => setColFilter('followers', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.tier || ''} onChange={(e) => setColFilter('tier', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.product || ''} onChange={(e) => setColFilter('product', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.collab || ''} onChange={(e) => setColFilter('collab', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.score || ''} onChange={(e) => setColFilter('score', e.target.value)} placeholder="lọc…" /></th>
-                <th></th>
-                <th></th>
-                <th><input className="col-filter" value={colFilters.note || ''} onChange={(e) => setColFilter('note', e.target.value)} placeholder="lọc…" /></th>
-                <th><input className="col-filter" value={colFilters.phone || ''} onChange={(e) => setColFilter('phone', e.target.value)} placeholder="lọc…" /></th>
               </tr>
             </thead>
             <tbody>
@@ -576,11 +561,6 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                     </td>
                     <td className="right mono">{fmtFollow(k.followers)}</td>
                     <td><span className="tag">{tierLabel(autoTier(k.followers))}</span></td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <input type="text" value={k.product || ''} placeholder="—"
-                        onChange={(e) => onUpdateKol(k.id, { product: e.target.value })}
-                        style={{ width: 130, padding: '5px 8px', fontSize: 12.5 }} />
-                    </td>
                     <td className="center mono">{collabCount[k.id] || 0}</td>
                     <td className="center"><ScoreBadge data={scoreByKol[k.id]} /></td>
                     <td><Stars value={k.rating} readOnly /></td>
@@ -599,7 +579,6 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                         onChange={(e) => onUpdateKol(k.id, { note: e.target.value })}
                         style={{ width: 150, padding: '5px 8px', fontSize: 12.5 }} />
                     </td>
-                    <td className="right nowrap mono cell-sub">{k.phone || '—'}</td>
                   </tr>
                 )
               })}
@@ -616,28 +595,25 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
 const PIPE_COLS = [
   ['shipDate', 'Ngày gửi', 150],
   ['kol', 'Tên KOL', 180],
-  ['follow', 'Follow', 80],
   ['product', 'Sản phẩm', 140],
   ['sampleQty', 'SL mẫu', 80],
   ['status', 'Trạng thái', 140],
   ['review', 'Review', 130],
-  ['reup', 'Reup', 90],
   ['orderCode', 'Mã đơn', 120],
-  ['proxyAmount', 'Tiền KOL đặt hộ', 130],
-  ['note', 'Ghi chú', 170],
+  ['note', 'Ghi chú', 340],
   ['videoLink', 'Link video', 180],
   ['sparkAds', 'Mã spark ads', 130],
   ['del', '', 50],
 ]
 
-function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
+function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, flash }) {
   const [filter, setFilter] = useState('')
   // độ rộng cột (lưu cục bộ trong trình duyệt)
   const [colW, setColW] = useState(() => {
-    try { const s = JSON.parse(localStorage.getItem('kolmgr_pipe_cols')); if (s) return s } catch {}
+    try { const s = JSON.parse(localStorage.getItem('kolmgr_pipe_cols_v2')); if (s) return s } catch {}
     const init = {}; PIPE_COLS.forEach(([k, , w]) => (init[k] = w)); return init
   })
-  useEffect(() => { localStorage.setItem('kolmgr_pipe_cols', JSON.stringify(colW)) }, [colW])
+  useEffect(() => { localStorage.setItem('kolmgr_pipe_cols_v2', JSON.stringify(colW)) }, [colW])
 
   function startColDrag(key, e) {
     e.preventDefault(); e.stopPropagation()
@@ -650,6 +626,14 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
   }
 
   function update(id, key, val) {
+    // Nếu là dòng ảo (KOL "Cần liên hệ") → tạo thành dòng làm việc thật
+    const v = virtualRows.find((r) => r.id === id)
+    if (v) {
+      const real = { ...v, id: uid(), _virtual: undefined, [key]: val }
+      delete real._virtual
+      onChange([real, ...works], 'Thêm KOL vào bảng làm việc', v.kolName || '—')
+      return
+    }
     onChange(works.map((w) => (w.id === id ? { ...w, [key]: val } : w)))
   }
   function pickKol(id, kol) {
@@ -660,6 +644,13 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
     onChange([emptyWork(null), ...works])
   }
   function delRow(w) {
+    // Dòng ảo: không xoá được work, chỉ bỏ trạng thái "Cần liên hệ" của KOL
+    if (w._virtual) {
+      if (!confirm('Bỏ KOL này khỏi danh sách cần liên hệ?')) return
+      if (onUpdateKol) onUpdateKol(w.kolId, { kolStatus: 'chua_lien_he' })
+      flash('Đã bỏ khỏi danh sách cần liên hệ')
+      return
+    }
     if (!confirm('Xoá dòng làm việc này?')) return
     onChange(works.filter((x) => x.id !== w.id), 'Xoá dòng Pipeline', w.kolName || '—')
     flash('Đã xoá dòng')
@@ -672,13 +663,31 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
     (w.review === 'mau_mien_phi' || w.review === 'da_review') &&
     !!(w.videoLink && w.videoLink.trim())
 
-  const rows = useMemo(() =>
-    works.filter((w) => !isDone(w) && (!filter || w.kolName.toLowerCase().includes(filter.toLowerCase()))), [works, filter])
+  // KOL ở trạng thái "Cần liên hệ" sẽ tự hiện ở đây dưới dạng dòng ảo
+  // (nếu chưa có dòng làm việc thật nào cho KOL đó).
+  const virtualRows = useMemo(() => {
+    const kolIdsWithWork = new Set(works.map((w) => w.kolId).filter(Boolean))
+    return kols
+      .filter((k) => k.kolStatus === 'can_lien_he' && !kolIdsWithWork.has(k.id))
+      .map((k) => ({
+        ...emptyWork(k),
+        id: `virtual-${k.id}`,
+        _virtual: true,
+        status: 'da_lien_he',
+        note: k.note || '',
+      }))
+  }, [kols, works])
+
+  const rows = useMemo(() => {
+    const realRows = works.filter((w) => !isDone(w))
+    const all = [...virtualRows, ...realRows]
+    return all.filter((w) => !filter || (w.kolName || '').toLowerCase().includes(filter.toLowerCase()))
+  }, [works, virtualRows, filter])
 
   return (
     <div>
       <div className="page-head">
-        <h1>Pipeline</h1>
+        <h1>KOL đang làm việc</h1>
         <span className="muted" style={{ fontSize: 13 }}>Bảng theo dõi từng lần làm việc — nhập trực tiếp vào ô</span>
         <div className="spacer" />
         <input type="text" placeholder="Lọc theo tên…" value={filter} onChange={(e) => setFilter(e.target.value)} style={{ width: 180 }} />
@@ -704,7 +713,7 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
             </thead>
             <tbody>
               {rows.map((w) => (
-                <tr key={w.id}>
+                <tr key={w.id} style={w._virtual ? { background: 'color-mix(in srgb, var(--red, #ef4444) 7%, transparent)' } : undefined} title={w._virtual ? 'KOL cần liên hệ — sửa bất kỳ ô nào để đưa vào bảng làm việc' : undefined}>
                   <td><input type="date" value={w.shipDate} onChange={(e) => update(w.id, 'shipDate', e.target.value)} style={{ width: '100%' }} /></td>
                   <td>
                     {w.kolName ? (
@@ -720,7 +729,6 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                         onPick={(k) => pickKol(w.id, k)} />
                     )}
                   </td>
-                  <td className="mono nowrap">{fmtFollow(w.followers)}</td>
                   <td><input type="text" value={w.product || ''} onChange={(e) => update(w.id, 'product', e.target.value)} placeholder="Sản phẩm…" style={{ width: '100%' }} /></td>
                   <td><input type="text" value={w.sampleQty || ''} onChange={(e) => update(w.id, 'sampleQty', e.target.value)} placeholder="SL" style={{ width: '100%' }} /></td>
                   <td>
@@ -738,13 +746,7 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, flash }) {
                       <option value="mau_mien_phi">Mẫu miễn phí</option>
                     </select>
                   </td>
-                  <td>
-                    <select value={w.canReup} onChange={(e) => update(w.id, 'canReup', e.target.value)} style={{ width: '100%' }}>
-                      <option value="">—</option><option value="co">Có</option><option value="khong">Không</option>
-                    </select>
-                  </td>
                   <td><input type="text" value={w.orderCode} onChange={(e) => update(w.id, 'orderCode', e.target.value)} style={{ width: '100%' }} /></td>
-                  <td><input type="number" value={w.proxyAmount || 0} onChange={(e) => update(w.id, 'proxyAmount', Number(e.target.value))} placeholder="0" style={{ width: '100%' }} /></td>
                   <td className="note-cell"><AutoTextarea value={w.note} onChange={(e) => update(w.id, 'note', e.target.value)} rows={1} className="cell-note" /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
@@ -844,7 +846,7 @@ function VideoLibrary({ kols, videos, works, onChange, flash }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty"><div className="big">▶</div>Chưa có video nào. Hãy điền “Link video” cho một dòng ở tab Pipeline.</div>
+        <div className="empty"><div className="big">▶</div>Chưa có video nào. Hãy điền “Link video” cho một dòng ở tab “KOL đang làm việc”.</div>
       ) : (
         <div className="table-wrap">
           <table className="pipe-table" style={{ minWidth: 1100 }}>
@@ -943,7 +945,7 @@ function Costs({ kols, works }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="empty"><div className="big">₫</div>Chưa có khoản đặt hộ nào. Điền “Tiền KOL đặt hộ” cho một dòng ở tab Pipeline.</div>
+        <div className="empty"><div className="big">₫</div>Chưa có khoản đặt hộ nào. Điền “Tiền KOL đặt hộ” cho một dòng ở tab “KOL đang làm việc”.</div>
       ) : (
         <div className="table-wrap">
           <table className="pipe-table" style={{ minWidth: 700 }}>
@@ -1111,7 +1113,7 @@ function KolDrawer({ kol, templates, works, score, onClose, onSave, onDelete, fl
             </>
           )}
           <div className="section-title">Lịch sử làm việc ({myWorks.length})</div>
-          {myWorks.length === 0 ? <div className="muted" style={{ fontSize: 13 }}>Chưa có lần làm việc nào. Thêm ở tab Pipeline.</div> : (
+          {myWorks.length === 0 ? <div className="muted" style={{ fontSize: 13 }}>Chưa có lần làm việc nào. Thêm ở tab “KOL đang làm việc”.</div> : (
             myWorks.map((w) => (
               <div key={w.id} className="hist">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
