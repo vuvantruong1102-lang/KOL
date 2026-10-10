@@ -537,8 +537,6 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                 <th style={{ minWidth: 130 }}>Trạng thái</th>
                 <th className="sortable right" onClick={() => toggleSort('followers')}>Follow{arrow('followers')}</th>
                 <th>Hạng</th>
-                <th className="sortable center" onClick={() => toggleSort('collab')}>Số lần HT{arrow('collab')}</th>
-                <th className="sortable center" onClick={() => toggleSort('score')}>Điểm KOL{arrow('score')}</th>
                 <th>Đánh giá</th>
                 <th>Video đã thực hiện</th>
                 <th>Ghi chú</th>
@@ -561,8 +559,6 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
                     </td>
                     <td className="right mono">{fmtFollow(k.followers)}</td>
                     <td><span className="tag">{tierLabel(autoTier(k.followers))}</span></td>
-                    <td className="center mono">{collabCount[k.id] || 0}</td>
-                    <td className="center"><ScoreBadge data={scoreByKol[k.id]} /></td>
                     <td><Stars value={k.rating} readOnly /></td>
                     <td onClick={(e) => e.stopPropagation()}>
                       {vids.length === 0 ? <span className="muted">—</span> : (
@@ -593,7 +589,7 @@ function KolList({ kols, works, scoreByKol, onOpen, onUpdateKol }) {
 // ============================ Pipeline (editable table) ============================
 // Định nghĩa các cột Pipeline (key + nhãn + rộng mặc định)
 const PIPE_COLS = [
-  ['shipDate', 'Ngày gửi', 150],
+  ['shipDate', 'Ngày', 150],
   ['kol', 'Tên KOL', 180],
   ['product', 'Sản phẩm', 140],
   ['sampleQty', 'SL mẫu', 80],
@@ -641,7 +637,8 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, fl
       'Gán KOL vào Pipeline', kol.name)
   }
   function addRow() {
-    onChange([emptyWork(null), ...works])
+    const today = new Date().toISOString().slice(0, 10)
+    onChange([{ ...emptyWork(null), shipDate: today }, ...works])
   }
   function delRow(w) {
     // Dòng ảo: không xoá được work, chỉ bỏ trạng thái "Cần liên hệ" của KOL
@@ -674,6 +671,7 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, fl
         id: `virtual-${k.id}`,
         _virtual: true,
         status: 'da_lien_he',
+        shipDate: (k.createdAt || new Date().toISOString()).slice(0, 10),
         note: k.note || '',
       }))
   }, [kols, works])
