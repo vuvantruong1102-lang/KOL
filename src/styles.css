@@ -164,6 +164,7 @@ tbody tr:hover { background: var(--surface-2); }
 .pill.purple { background: var(--purple-soft); color: var(--purple); }
 .pill.blue   { background: #e8f0fe; color: var(--info); }
 .pill.gray   { background: #eef0f3; color: var(--txt-dim); }
+.pill.gold   { background: #fff3c4; color: #8a6d00; }
 .tag {
   display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 11px;
   background: var(--bg); color: var(--txt-dim); border: 1px solid var(--line-2);
