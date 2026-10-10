@@ -40,5 +40,6 @@ export const KOL_STATUS = [
   { key: 'dang_hop_tac', label: 'Đang hợp tác', pill: 'yellow' },
   { key: 'da_hop_tac',   label: 'Đã hợp tác',   pill: 'green'  },
   { key: 'tu_choi',      label: 'Từ chối',      pill: 'red'    },
+  { key: 'khong_phu_hop', label: 'Không phù hợp', pill: 'gray' },
 ]
 export const kolStatusOf = (key) => KOL_STATUS.find((s) => s.key === key)
