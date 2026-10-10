@@ -1,6 +1,7 @@
 // Trạng thái của mỗi LẦN làm việc với KOL (dùng cho Pipeline + Danh sách)
 // pill class quyết định màu badge.
 export const WORK_STATUS = [
+  { key: 'can_lien_he', label: 'Cần liên hệ', pill: 'gold'   },
   { key: 'da_lien_he',  label: 'Đã liên hệ',  pill: 'blue'   },
   { key: 'da_gui_hang', label: 'Đã gửi hàng', pill: 'yellow' },
   { key: 'hoan_thanh',  label: 'Hoàn thành',  pill: 'green'  },
