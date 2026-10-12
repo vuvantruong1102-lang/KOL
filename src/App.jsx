@@ -635,16 +635,20 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, fl
   // Đổi trạng thái. Khi chọn "Lưu trữ" → lưu nội dung Ghi chú về KOL trong Danh sách KOL,
   // rồi dòng sẽ tự biến mất khỏi panel (isDone).
   function setStatus(w, val) {
-    if (val === 'luu_tru' && w.kolId && onUpdateKol) {
+    if (w.kolId && onUpdateKol) {
       const kol = kols.find((k) => k.id === w.kolId)
       const patch = {}
-      const incoming = (w.note || '').trim()
-      if (incoming) {
-        const prev = (kol && kol.note ? kol.note.trim() : '')
-        patch.note = prev ? (prev.includes(incoming) ? prev : `${prev}\n${incoming}`) : incoming
+      if (val === 'luu_tru') {
+        const incoming = (w.note || '').trim()
+        if (incoming) {
+          const prev = (kol && kol.note ? kol.note.trim() : '')
+          patch.note = prev ? (prev.includes(incoming) ? prev : `${prev}\n${incoming}`) : incoming
+        }
+        // KOL đang ở "Cần liên hệ" mà lưu trữ → bỏ trạng thái để dòng ảo không hiện lại
+        if (kol && kol.kolStatus === 'can_lien_he') patch.kolStatus = 'da_lien_he'
       }
-      // KOL đang ở "Cần liên hệ" mà lưu trữ → bỏ trạng thái để dòng ảo không hiện lại
-      if (kol && kol.kolStatus === 'can_lien_he') patch.kolStatus = 'da_lien_he'
+      // "Không phù hợp" ở bảng làm việc → cập nhật luôn trạng thái KOL trong Danh sách KOL
+      if (val === 'khong_phu_hop') patch.kolStatus = 'khong_phu_hop'
       if (Object.keys(patch).length) onUpdateKol(w.kolId, patch)
     }
     update(w.id, 'status', val)
