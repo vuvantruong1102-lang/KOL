@@ -6,6 +6,8 @@ export const WORK_STATUS = [
   { key: 'da_gui_hang', label: 'Đã gửi hàng', pill: 'yellow' },
   { key: 'hoan_thanh',  label: 'Hoàn thành',  pill: 'green'  },
   { key: 'tu_choi',     label: 'Từ chối',     pill: 'red'    },
+  { key: 'khong_phu_hop', label: 'Không phù hợp', pill: 'gray' },
+  { key: 'luu_tru',     label: 'Lưu trữ',     pill: 'gray'   },
 ]
 export const statusOf = (key) => {
   // dữ liệu cũ có thể còn 'cho_video' — quy về 'Đã gửi hàng'
