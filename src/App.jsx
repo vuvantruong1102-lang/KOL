@@ -632,6 +632,24 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, fl
     }
     onChange(works.map((w) => (w.id === id ? { ...w, [key]: val } : w)))
   }
+  // Đổi trạng thái. Khi chọn "Lưu trữ" → lưu nội dung Ghi chú về KOL trong Danh sách KOL,
+  // rồi dòng sẽ tự biến mất khỏi panel (isDone).
+  function setStatus(w, val) {
+    if (val === 'luu_tru' && w.kolId && onUpdateKol) {
+      const kol = kols.find((k) => k.id === w.kolId)
+      const patch = {}
+      const incoming = (w.note || '').trim()
+      if (incoming) {
+        const prev = (kol && kol.note ? kol.note.trim() : '')
+        patch.note = prev ? (prev.includes(incoming) ? prev : `${prev}\n${incoming}`) : incoming
+      }
+      // KOL đang ở "Cần liên hệ" mà lưu trữ → bỏ trạng thái để dòng ảo không hiện lại
+      if (kol && kol.kolStatus === 'can_lien_he') patch.kolStatus = 'da_lien_he'
+      if (Object.keys(patch).length) onUpdateKol(w.kolId, patch)
+    }
+    update(w.id, 'status', val)
+  }
+
   function pickKol(id, kol) {
     onChange(works.map((w) => (w.id === id ? { ...w, kolId: kol.id, kolName: kol.name, followers: kol.followers } : w)),
       'Gán KOL vào Pipeline', kol.name)
@@ -654,11 +672,14 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, fl
   }
   function commit() { onChange(works, 'Cập nhật Pipeline', `${works.length} dòng`); flash('Đã lưu') }
 
-  // Ẩn dòng đã xong: Trạng thái "Hoàn thành" + Review là "Mẫu miễn phí"/"Đã review" + đã điền Link video
+  // Ẩn dòng khỏi panel khi:
+  // - Trạng thái "Lưu trữ" (ẩn ngay, không phụ thuộc điều kiện khác), hoặc
+  // - "Hoàn thành" + Review "Mẫu miễn phí"/"Đã review" + đã điền Link video
   const isDone = (w) =>
-    w.status === 'hoan_thanh' &&
-    (w.review === 'mau_mien_phi' || w.review === 'da_review') &&
-    !!(w.videoLink && w.videoLink.trim())
+    w.status === 'luu_tru' ||
+    (w.status === 'hoan_thanh' &&
+      (w.review === 'mau_mien_phi' || w.review === 'da_review') &&
+      !!(w.videoLink && w.videoLink.trim()))
 
   // KOL ở trạng thái "Cần liên hệ" sẽ tự hiện ở đây dưới dạng dòng ảo
   // (nếu chưa có dòng làm việc thật nào cho KOL đó).
@@ -730,7 +751,7 @@ function Pipeline({ kols, works, templates, onChange, onOpenKol, onUpdateKol, fl
                   <td><input type="text" value={w.product || ''} onChange={(e) => update(w.id, 'product', e.target.value)} placeholder="Sản phẩm…" style={{ width: '100%' }} /></td>
                   <td><input type="text" value={w.sampleQty || ''} onChange={(e) => update(w.id, 'sampleQty', e.target.value)} placeholder="SL" style={{ width: '100%' }} /></td>
                   <td>
-                    <select value={w.status} onChange={(e) => update(w.id, 'status', e.target.value)}
+                    <select value={w.status} onChange={(e) => setStatus(w, e.target.value)}
                       className={`pill ${statusOf(w.status).pill}`} style={{ border: 'none', fontWeight: 600, cursor: 'pointer', appearance: 'none', paddingRight: 8 }}>
                       {WORK_STATUS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                     </select>
@@ -1205,6 +1226,7 @@ export default function Root() {
   const [pw, setPw] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [showPw, setShowPw] = useState(false)
 
   useEffect(() => {
     if (!hasSupabaseConfig) { setPhase('config'); return }
@@ -1267,14 +1289,20 @@ export default function Root() {
         <div className="login-box">
           <div className="login-logo"><span className="mark">K</span></div>
           <h2>KOL Manager</h2>
-          <p className="muted">Nhập mật khẩu để truy cập</p>
-          <input type="password" autoFocus value={pw} placeholder="Mật khẩu"
-            onChange={(e) => setPw(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') doLogin() }} />
+          <p className="muted">Nhập mật khẩu để truy cập hệ thống</p>
+          <div className="login-field">
+            <input type={showPw ? 'text' : 'password'} className="login-pw" autoFocus value={pw} placeholder="Mật khẩu"
+              onChange={(e) => setPw(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') doLogin() }} />
+            <button type="button" className="login-eye" tabIndex={-1}
+              title={showPw ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              onClick={() => setShowPw((v) => !v)}>{showPw ? '🙈' : '👁'}</button>
+          </div>
           {err && <div className="login-err">{err}</div>}
           <button className="btn primary block" disabled={busy} onClick={doLogin}>
             {busy ? 'Đang vào…' : 'Đăng nhập'}
           </button>
+          <div className="login-foot">Yokool · KOL Manager</div>
         </div>
       </div>
     )
