@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   loadKols, saveKols, loadWorks, saveWorks, loadVideos, saveVideos,
   loadTemplates, saveTemplates, loadLogs, addLog, clearLogs, uid,
-  seedIfEmpty, exportAll, importAll,
+  seedIfEmpty, exportAll, importAll, flushAll,
   loadAll, signInWithPassword, signOut, getSession,
 } from './lib/storage'
 import { hasSupabaseConfig, FIXED_EMAIL, supabase } from './lib/supabaseClient'
@@ -120,6 +120,19 @@ function AppInner({ onSignOut }) {
     seedIfEmpty()
     setKols(loadKols()); setWorks(loadWorks()); setVideos(loadVideos())
     setTemplates(loadTemplates()); setLogs(loadLogs())
+  }, [])
+
+  // Ép ghi ngay mọi thay đổi đang chờ (debounce 600ms) khi tắt/ẩn tab,
+  // tránh mất dữ liệu nếu đóng trình duyệt ngay sau khi vừa sửa.
+  useEffect(() => {
+    const flush = () => { flushAll() }
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flush() }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [])
 
   const flash = (m) => { setToast(m); setTimeout(() => setToast(''), 1800) }
